@@ -52,7 +52,7 @@ settings, private work counts too, as the number of contributions only.
 |---|---|---|
 | `scenery` | `golden_lake` | `golden_lake`, `misty_valley`, `aurora`, `lanterns`, `bamboo` or `synthwave` |
 | `dark_scenery` | `aurora` | Shown to people who use GitHub in dark mode. Empty for none. |
-| `period` | `this-year` | `this-year` for the current calendar year, `last-year` for the past 12 months, `all` for your whole history, or a year such as `2025` |
+| `period` | `last-year` | `last-year` for the same year as the calendar on your profile (the numbers match it), `this-year` for the current calendar year, `all` for your whole history, or a year such as `2025` |
 | `stats` | `true` | The number of trees and contributions, in small pixel letters at the bottom |
 | `timezone` | none | Your time zone, such as `Europe/Berlin`. The light image then shows dawn, day, golden hour, dusk or night where you are. Change the schedule to `cron: "0 * * * *"` so it redraws every hour. |
 | `format` | `apng` | `apng` (animated PNG), `gif`, or `png` (still) |

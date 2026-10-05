@@ -57,10 +57,12 @@ test('more than 730 trees: the oldest go to the deep forest', () => {
   assert.equal(f.merged.count, 270);
 });
 
-test('periods: all, the past year, one calendar year', () => {
+test('periods: the fetched span as it is, this year, one calendar year', () => {
   const days = [day('2024-05-01'), day('2025-03-01'), day('2025-11-01'), day('2026-10-05')];
   assert.equal(inPeriod(days, 'all', '2026-10-05').length, 4);
-  assert.equal(inPeriod(days, 'last-year', '2026-10-05').length, 2);
+  // last-year is fetched as the profile's own calendar, so every day of it is kept
+  assert.equal(inPeriod(days, 'last-year', '2026-10-05').length, 4);
+  assert.equal(inPeriod(days, 'this-year', '2026-10-05').length, 1);
   assert.equal(inPeriod(days, '2025', '2026-10-05').length, 2);
   assert.throws(() => inPeriod(days, 'forever', '2026-10-05'));
 });

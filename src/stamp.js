@@ -21,6 +21,8 @@ export function statsLine(stats, period, year) {
   const parts = [`${n(stats.trees)} ${stats.trees === 1 ? 'TREE' : 'TREES'}`, `${n(stats.cards)} ${stats.cards === 1 ? 'CONTRIBUTION' : 'CONTRIBUTIONS'}`];
   if (period === 'this-year') parts.unshift(String(year));
   else if (/^\d{4}$/.test(period)) parts.unshift(period);
+  // the same words as the calendar's heading, "288 contributions in the last year"
+  else if (period === 'last-year') parts[parts.length - 1] += ' IN THE LAST YEAR';
   return parts.join(' · ');
 }
 

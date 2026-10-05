@@ -27,7 +27,7 @@ function snippet({ repo, branch, files, alt }) {
 
 async function main() {
   const repo = process.env.GITHUB_REPOSITORY || 'you/you', token = input('token'), branch = input('branch') || 'output';
-  const period = input('period') || 'this-year';
+  const period = input('period') || 'last-year';
   try {
     const { forest, files, alt } = await grow({
       login: input('user') || repo.split('/')[0], token,

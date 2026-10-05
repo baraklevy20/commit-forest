@@ -42,17 +42,14 @@ function stageOf(ago) {
   return ANCIENT;
 }
 
-/* The days a period covers: 'this-year' (the calendar year of today), 'last-year' (the 365
- * days up to today), a year ('2025'), or 'all'. */
+/* The days a period covers, from a calendar that may hold more: 'this-year' (the calendar
+ * year of today), a year ('2025'), or 'last-year' and 'all', which keep every day given
+ * (the calendar fetched for them is already that span). */
 export function inPeriod(days, period, today) {
-  if (period === 'all') return days;
+  if (period === 'all' || period === 'last-year') return days;
   if (!period || period === 'this-year') return days.filter(d => d.date.startsWith(today.slice(0, 4) + '-'));
-  if (period === 'last-year') {
-    const from = dayNumber(today) - 364;
-    return days.filter(d => dayNumber(d.date) >= from);
-  }
   if (/^\d{4}$/.test(period)) return days.filter(d => d.date.startsWith(period + '-'));
-  throw new Error(`period must be this-year, last-year, all or a year like 2025, not "${period}"`);
+  throw new Error(`period must be last-year, this-year, all or a year like 2025, not "${period}"`);
 }
 
 /* days: [{ date: 'YYYY-MM-DD', count, level }] from the calendar, any order; today: 'YYYY-MM-DD'.

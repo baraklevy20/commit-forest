@@ -63250,9 +63250,10 @@ import path15 from "node:path";
 // src/calendar.js
 var API = "https://api.github.com/graphql";
 var ACCOUNT = `query($login: String!) { user(login: $login) { createdAt } }`;
-var YEAR = `query($login: String!, $from: DateTime!, $to: DateTime!) {
-  user(login: $login) { contributionsCollection(from: $from, to: $to) {
-    contributionCalendar { weeks { contributionDays { date contributionCount contributionLevel } } } } } }`;
+var DAYS = `contributionCalendar { totalContributions weeks { contributionDays { date contributionCount contributionLevel } } }`;
+var ROLLING = `query($login: String!) { user(login: $login) { contributionsCollection { ${DAYS} } } }`;
+var SPAN = `query($login: String!, $from: DateTime!, $to: DateTime!) {
+  user(login: $login) { contributionsCollection(from: $from, to: $to) { ${DAYS} } } }`;
 async function query(token, q2, variables) {
   const res = await fetch(API, {
     method: "POST",
@@ -63264,19 +63265,31 @@ async function query(token, q2, variables) {
   if (body.errors) throw new Error(body.errors.map((e) => e.message).join("; "));
   return body.data;
 }
-async function fetchCalendar(login, token, now = /* @__PURE__ */ new Date()) {
+var daysOf = (calendar) => calendar.weeks.flatMap((w2) => w2.contributionDays).map((d) => ({ date: d.date, count: d.contributionCount, level: d.contributionLevel }));
+async function span(login, token, year, now) {
+  const from2 = new Date(Date.UTC(year, 0, 1));
+  const to = year === now.getUTCFullYear() ? now : new Date(Date.UTC(year, 11, 31, 23, 59, 59));
+  const data = await query(token, SPAN, { login, from: from2.toISOString(), to: to.toISOString() });
+  if (!data.user) throw new Error(`there is no GitHub user called ${login}`);
+  return daysOf(data.user.contributionsCollection.contributionCalendar);
+}
+async function fetchCalendar(login, token, period = "last-year", now = /* @__PURE__ */ new Date()) {
+  const rolling = await query(token, ROLLING, { login });
+  if (!rolling.user) throw new Error(`there is no GitHub user called ${login}`);
+  const recent = daysOf(rolling.user.contributionsCollection.contributionCalendar);
+  const today = recent[recent.length - 1].date;
+  if (period === "last-year") return { days: recent, today };
+  if (period === "this-year" || /^\d{4}$/.test(period)) {
+    const year = period === "this-year" ? Number(today.slice(0, 4)) : Number(period);
+    return { days: await span(login, token, year, now), today };
+  }
+  if (period !== "all") throw new Error(`period must be last-year, this-year, all or a year like 2025, not "${period}"`);
   const account = await query(token, ACCOUNT, { login });
-  if (!account.user) throw new Error(`there is no GitHub user called ${login}`);
   const days = /* @__PURE__ */ new Map();
   for (let year = new Date(account.user.createdAt).getUTCFullYear(); year <= now.getUTCFullYear(); year++) {
-    const from2 = new Date(Date.UTC(year, 0, 1));
-    const to = year === now.getUTCFullYear() ? now : new Date(Date.UTC(year, 11, 31, 23, 59, 59));
-    const data = await query(token, YEAR, { login, from: from2.toISOString(), to: to.toISOString() });
-    for (const week of data.user.contributionsCollection.contributionCalendar.weeks) {
-      for (const d of week.contributionDays) days.set(d.date, { date: d.date, count: d.contributionCount, level: d.contributionLevel });
-    }
+    for (const d of await span(login, token, year, now)) days.set(d.date, d);
   }
-  return [...days.values()].sort((a2, b2) => a2.date.localeCompare(b2.date));
+  return { days: [...days.values()].sort((a2, b2) => a2.date.localeCompare(b2.date)), today };
 }
 
 // src/forest.js
@@ -63318,14 +63331,10 @@ function stageOf(ago) {
   return ANCIENT;
 }
 function inPeriod(days, period, today) {
-  if (period === "all") return days;
+  if (period === "all" || period === "last-year") return days;
   if (!period || period === "this-year") return days.filter((d) => d.date.startsWith(today.slice(0, 4) + "-"));
-  if (period === "last-year") {
-    const from2 = dayNumber(today) - 364;
-    return days.filter((d) => dayNumber(d.date) >= from2);
-  }
   if (/^\d{4}$/.test(period)) return days.filter((d) => d.date.startsWith(period + "-"));
-  throw new Error(`period must be this-year, last-year, all or a year like 2025, not "${period}"`);
+  throw new Error(`period must be last-year, this-year, all or a year like 2025, not "${period}"`);
 }
 function buildForest(days, { login, today, cap = MAX_INDIVIDUAL_TREES }) {
   const todayN = dayNumber(today);
@@ -65047,6 +65056,7 @@ function statsLine(stats, period, year) {
   const parts = [`${n(stats.trees)} ${stats.trees === 1 ? "TREE" : "TREES"}`, `${n(stats.cards)} ${stats.cards === 1 ? "CONTRIBUTION" : "CONTRIBUTIONS"}`];
   if (period === "this-year") parts.unshift(String(year));
   else if (/^\d{4}$/.test(period)) parts.unshift(period);
+  else if (period === "last-year") parts[parts.length - 1] += " IN THE LAST YEAR";
   return parts.join(" \xB7 ");
 }
 function stamp(rgba, w2, h, text) {
@@ -65123,9 +65133,9 @@ var FORMATS = { apng: "png", png: "png", gif: "gif" };
 var SECONDS = 4;
 var FPS = 12;
 function altText(stats, period, year) {
-  const span = period === "all" ? "" : period === "last-year" ? " in the past year" : ` in ${period === "this-year" ? year : period}`;
+  const span2 = period === "all" ? "" : period === "last-year" ? " in the last year" : ` in ${period === "this-year" ? year : period}`;
   const trees = `${stats.trees.toLocaleString("en-US")} ${stats.trees === 1 ? "tree" : "trees"}`;
-  return `My contribution forest: ${trees}, one for each day I contributed${span}`;
+  return `My contribution forest: ${trees}, one for each day I contributed${span2}`;
 }
 function hourIn(timezone, now = /* @__PURE__ */ new Date()) {
   const h = new Intl.DateTimeFormat("en-US", { timeZone: timezone, hour: "numeric", hourCycle: "h23" }).format(now);
@@ -65136,7 +65146,7 @@ async function grow({
   token,
   scenery,
   darkScenery,
-  period = "this-year",
+  period = "last-year",
   format: format3 = "apng",
   stats = true,
   timezone,
@@ -65145,9 +65155,9 @@ async function grow({
   days
 }) {
   if (!FORMATS[format3]) throw new Error(`format must be apng, gif or png, not "${format3}"`);
-  const calendar = days || await fetchCalendar(login, token);
-  const today = calendar.length ? calendar[calendar.length - 1].date : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-  const forest = buildForest(inPeriod(calendar, period, today), { login, today });
+  const fetched = days ? { days, today: days[days.length - 1].date } : await fetchCalendar(login, token, period);
+  const today = fetched.today;
+  const forest = buildForest(inPeriod(fetched.days, period, today), { login, today });
   const year = today.slice(0, 4);
   const text = stats ? statsLine(forest.stats, period, year) : null;
   const lightTime = timezone ? timeAt(hourIn(timezone)) : null;
@@ -65215,7 +65225,7 @@ function snippet({ repo, branch, files, alt }) {
 }
 async function main() {
   const repo = process.env.GITHUB_REPOSITORY || "you/you", token = input2("token"), branch = input2("branch") || "output";
-  const period = input2("period") || "this-year";
+  const period = input2("period") || "last-year";
   try {
     const { forest, files, alt } = await grow({
       login: input2("user") || repo.split("/")[0],

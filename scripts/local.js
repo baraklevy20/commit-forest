@@ -1,7 +1,7 @@
 // Grow a forest on this machine, without pushing anything:
 //
 //   node scripts/local.js --user baraklevy20 [--scenery golden_lake] [--dark aurora]
-//                         [--period this-year|last-year|all|2025] [--format apng|gif|png] [--out out]
+//                         [--period last-year|this-year|all|2025] [--format apng|gif|png] [--out out]
 //                         [--timezone Europe/Berlin] [--no-stats]
 //
 // The calendar is read with GITHUB_TOKEN, or the gh CLI's token when that isn't set.
@@ -13,7 +13,7 @@ import { grow } from '../src/grow.js';
 const { values: a } = parseArgs({
   options: {
     user: { type: 'string' }, scenery: { type: 'string', default: 'golden_lake' }, dark: { type: 'string', default: 'aurora' },
-    period: { type: 'string', default: 'this-year' }, format: { type: 'string', default: 'apng' }, out: { type: 'string', default: 'out' },
+    period: { type: 'string', default: 'last-year' }, format: { type: 'string', default: 'apng' }, out: { type: 'string', default: 'out' },
     chrome: { type: 'string' }, timezone: { type: 'string' }, 'no-stats': { type: 'boolean' },
   },
 });

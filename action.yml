@@ -15,8 +15,8 @@ inputs:
     description: The scenery for dark mode. Empty for no dark image.
     default: aurora
   period:
-    description: "Which contributions: this-year (the current calendar year), last-year (the past 12 months, like the calendar), all (your whole history), or a year such as 2025."
-    default: this-year
+    description: "Which contributions: last-year (the same year as the calendar on your profile), this-year (the current calendar year), all (your whole history), or a year such as 2025."
+    default: last-year
   stats:
     description: Show the number of trees and contributions in the image.
     default: "true"
