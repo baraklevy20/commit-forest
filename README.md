@@ -84,9 +84,9 @@ anything. To stay on one release, use its full tag, such as `@v1.0.0`.
 - The newest 730 trees are drawn one by one; older ones become the deep forest behind them
   (with `period: all`).
 - Birds fly over a daytime sky, one for each contribution in the past day, up to six.
-- The animation loops without a seam. Each scenery loops in its own time, long enough for
-  what crosses it to cross at its natural pace: a minute for golden_lake's birds and the
-  lanterns, ten seconds for bamboo's river lanterns, four seconds for the rest.
+- The animation loops without a seam. Each loop is long enough for what crosses the scene
+  to cross at its natural pace: a minute when there are birds and for the lanterns, ten
+  seconds for bamboo's river lanterns, four seconds otherwise.
 
 ## Questions
 

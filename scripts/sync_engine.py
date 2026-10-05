@@ -22,11 +22,13 @@ REPO = os.path.dirname(HERE)
 DEFAULT_ADDON = os.path.join(os.path.dirname(REPO), "anki-automator", "anki_forest")
 # the sceneries the Action offers (the add-on's base presets), each with the length of its
 # loop in seconds and its frame rate. A loop is as long as what crosses the scene needs to
-# cross it at the add-on's own speed: golden_lake's birds take about a minute, as do the
-# lanterns' sky lanterns; bamboo's river lanterns hand over to the next one in 10 seconds.
-# Sceneries with nothing crossing keep a short loop, which keeps their files small.
+# cross it at the add-on's own speed: the lanterns' sky lanterns take about a minute, and
+# bamboo's river lanterns hand over to the next one in 10 seconds. Sceneries with nothing
+# crossing keep a short loop, which keeps their files small. Birds are decided by the
+# engine (daytime, calm weather, the past day's contributions), so any scene that has them
+# loops in a minute instead (BIRD_LOOP in src/render.js).
 SCENERIES = {
-    "golden_lake": (60, 12),
+    "golden_lake": (4, 12),
     "misty_valley": (4, 12),
     "aurora": (4, 12),
     "lanterns": (60, 8),

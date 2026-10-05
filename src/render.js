@@ -14,6 +14,9 @@ export const PANEL_PX = 776, SCALE = 2;
 // the clock starts here (ms), past the moment a scene first draws, so nothing is mid-appearance;
 // a whole number of loops, so the recording starts at the loop's beginning
 const START_MS = 20000;
+// a scene with birds loops in no less than this: they cross it in about a minute at the
+// add-on's own pace, and a shorter loop would make them fly a whole crossing faster
+export const BIRD_LOOP = 60;
 const CHROMES = [
   '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser',
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -84,7 +87,8 @@ catch (e) { window.ERRS.push('mount: ' + (e.stack || e)); }</script>`;
 
 /* `seconds` of the scene as PNG data URLs of the canvas (388 x 194), `fps` a second, with
  * every motion repeating in `loop` seconds: when the two are the same, the frame after the
- * last is the first again. */
+ * last is the first again. A scene that turns out to have birds loops in BIRD_LOOP seconds
+ * at least, and a whole loop is then recorded as that much longer. */
 export async function renderFrames(forest, mood, { chrome, seconds = 4, fps = 12, loop = seconds } = {}) {
   const browser = await puppeteer.launch({
     executablePath: findChrome(chrome), headless: true,
@@ -94,6 +98,14 @@ export async function renderFrames(forest, mood, { chrome, seconds = 4, fps = 12
     const tab = await browser.newPage();
     await tab.setViewport({ width: PANEL_PX + 40, height: 600 });
     await tab.setContent(page(forest, mood, loop), { waitUntil: 'load' });
+    // the engine decides on birds from the time of day, the weather and today's numbers
+    const birds = await tab.evaluate(() => document.getElementById('p').afEnv?.theme?.birds || 0);
+    if (birds && loop < BIRD_LOOP) {
+      if (seconds === loop) seconds = BIRD_LOOP;
+      loop = BIRD_LOOP;
+      // the loop helpers read it as they draw, so it can change after the scene is set up
+      await tab.evaluate(l => { window.AnkiForest.LOOP = l; }, loop);
+    }
     const result = await tab.evaluate((frames, step, start) => {
       const c = document.querySelector('canvas'), shots = [];
       if (!c) return { errors: window.ERRS.concat('no canvas was drawn'), shots };
@@ -101,7 +113,7 @@ export async function renderFrames(forest, mood, { chrome, seconds = 4, fps = 12
       return { errors: window.ERRS, w: c.width, h: c.height, shots };
     }, Math.max(1, Math.round(seconds * fps)), 1000 / fps, START_MS);
     if (result.errors.length) throw new Error('the engine failed: ' + result.errors[0]);
-    return result;
+    return { ...result, loop };
   } finally {
     await browser.close();
   }

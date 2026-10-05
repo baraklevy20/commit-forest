@@ -64899,6 +64899,7 @@ var ROOT = path14.join(path14.dirname(fileURLToPath2(import.meta.url)), "..");
 var PANEL_PX = 776;
 var SCALE = 2;
 var START_MS = 2e4;
+var BIRD_LOOP = 60;
 var CHROMES = [
   "/usr/bin/google-chrome",
   "/usr/bin/google-chrome-stable",
@@ -64987,6 +64988,14 @@ async function renderFrames(forest, mood, { chrome: chrome2, seconds = 4, fps = 
     const tab = await browser.newPage();
     await tab.setViewport({ width: PANEL_PX + 40, height: 600 });
     await tab.setContent(page(forest, mood, loop), { waitUntil: "load" });
+    const birds = await tab.evaluate(() => document.getElementById("p").afEnv?.theme?.birds || 0);
+    if (birds && loop < BIRD_LOOP) {
+      if (seconds === loop) seconds = BIRD_LOOP;
+      loop = BIRD_LOOP;
+      await tab.evaluate((l) => {
+        window.AnkiForest.LOOP = l;
+      }, loop);
+    }
     const result = await tab.evaluate((frames, step, start) => {
       const c = document.querySelector("canvas"), shots = [];
       if (!c) return { errors: window.ERRS.concat("no canvas was drawn"), shots };
@@ -64997,7 +65006,7 @@ async function renderFrames(forest, mood, { chrome: chrome2, seconds = 4, fps = 
       return { errors: window.ERRS, w: c.width, h: c.height, shots };
     }, Math.max(1, Math.round(seconds * fps)), 1e3 / fps, START_MS);
     if (result.errors.length) throw new Error("the engine failed: " + result.errors[0]);
-    return result;
+    return { ...result, loop };
   } finally {
     await browser.close();
   }

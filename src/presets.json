@@ -5,7 +5,7 @@
     "landmark": "none",
     "weather": "clear",
     "time": "golden_hour",
-    "loop": 60,
+    "loop": 4,
     "fps": 12
   },
   "misty_valley": {
