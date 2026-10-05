@@ -14,6 +14,10 @@ export const MAX_INDIVIDUAL_TREES = 730;
 // about a third of the trees are conifers, and about one in five crowns is small, both by
 // each day's seed; a crown is large on the user's busiest days (GitHub's darkest square)
 const PINE_PERCENT = 34, SMALL_PERCENT = 20;
+// birds in a daytime sky: one for each contribution in the past day (today and yesterday,
+// since the daily run comes early in the morning), at most 6. The engine counts a bird per
+// 40 reviews, so each contribution counts as 40.
+const REVIEWS_PER_BIRD = 40;
 const BUSIEST = 'FOURTH_QUARTILE';
 
 // the animals: for trees and time, never for a streak
@@ -100,7 +104,7 @@ function statsOf(trees, todayN) {
     // no streaks: nothing in the picture may depend on an unbroken run
     streak: 0, longest_streak: 0,
     reviews: trees.reduce((a, t) => a + t.n, 0),
-    today_reviews: 0,
+    today_reviews: trees.filter(t => t.ago <= 1).reduce((a, t) => a + t.n, 0) * REVIEWS_PER_BIRD,
     forest_age: trees.length ? todayN - trees[0].day : 0,
     oldest_date: trees.length ? trees[0].date : null,
     planted_today: Boolean(last && last.ago === 0),

@@ -4,12 +4,11 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fetchCalendar } from './calendar.js';
 import { buildForest, inPeriod } from './forest.js';
-import { moodOf, renderFrames, SCALE, timeAt } from './render.js';
+import { moodOf, renderFrames, SCALE, SCENERIES, timeAt } from './render.js';
 import { statsLine } from './stamp.js';
 import * as encode from './encode.js';
 
 export const FORMATS = { apng: 'png', png: 'png', gif: 'gif' };
-const SECONDS = 4, FPS = 12;
 
 export function altText(stats, period, year) {
   const span = period === 'all' ? '' : period === 'last-year' ? ' in the last year' : ` in ${period === 'this-year' ? year : period}`;
@@ -37,10 +36,11 @@ export async function grow({ login, token, scenery, darkScenery, period = 'last-
   const files = [];
   for (const [name, key, time] of [['forest', scenery, lightTime], ['forest-dark', darkScenery, null]]) {
     if (!key) continue;
-    const still = format === 'png';
-    const shots = (await renderFrames(forest, moodOf(key, today, time), { chrome, seconds: still ? 1 / FPS : SECONDS, fps: FPS })).shots;
-    const bytes = format === 'gif' ? encode.gif(shots, FPS, SCALE, text)
-      : still ? encode.png(shots, SCALE, text) : encode.apng(shots, FPS, SCALE, text);
+    // each scenery loops in its own time (src/presets.json, set in scripts/sync_engine.py)
+    const still = format === 'png', mood = moodOf(key, today, time), { loop, fps } = SCENERIES[key];
+    const shots = (await renderFrames(forest, mood, { chrome, seconds: still ? 1 / fps : loop, fps })).shots;
+    const bytes = format === 'gif' ? encode.gif(shots, fps, SCALE, text)
+      : still ? encode.png(shots, SCALE, text) : encode.apng(shots, fps, SCALE, text);
     const file = path.join(outDir, `${name}.${FORMATS[format]}`);
     writeFileSync(file, bytes);
     files.push(file);

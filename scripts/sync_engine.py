@@ -20,8 +20,19 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 DEFAULT_ADDON = os.path.join(os.path.dirname(REPO), "anki-automator", "anki_forest")
-# the sceneries the Action offers: the add-on's base presets
-SCENERIES = ("golden_lake", "misty_valley", "aurora", "lanterns", "bamboo", "synthwave")
+# the sceneries the Action offers (the add-on's base presets), each with the length of its
+# loop in seconds and its frame rate. A loop is as long as what crosses the scene needs to
+# cross it at the add-on's own speed: golden_lake's birds take about a minute, as do the
+# lanterns' sky lanterns; bamboo's river lanterns hand over to the next one in 10 seconds.
+# Sceneries with nothing crossing keep a short loop, which keeps their files small.
+SCENERIES = {
+    "golden_lake": (60, 12),
+    "misty_valley": (4, 12),
+    "aurora": (4, 12),
+    "lanterns": (60, 8),
+    "bamboo": (10, 12),
+    "synthwave": (4, 12),
+}
 
 
 def main() -> None:
@@ -39,7 +50,8 @@ def main() -> None:
         if cfg["environment"] not in base_envs:
             sys.exit(f"{key} draws with {cfg['environment']}, which is not in the base edition")
         looks[key] = {"environment": cfg["environment"], "landscape": cfg["landscape"],
-                      "landmark": cfg.get("landmark", "none"), "weather": cfg["weather"], "time": cfg["time_of_day"]}
+                      "landmark": cfg.get("landmark", "none"), "weather": cfg["weather"], "time": cfg["time_of_day"],
+                      "loop": SCENERIES[key][0], "fps": SCENERIES[key][1]}
         for kind, name in (("envs", cfg["environment"]), ("landscapes", cfg["landscape"]), ("landmarks", cfg.get("landmark"))):
             rel = f"{kind}/{name}.js"
             if name and os.path.exists(os.path.join(catalog.WEB, rel)) and rel not in scenery_files:

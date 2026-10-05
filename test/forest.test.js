@@ -66,3 +66,8 @@ test('periods: the fetched span as it is, this year, one calendar year', () => {
   assert.equal(inPeriod(days, '2025', '2026-10-05').length, 2);
   assert.throws(() => inPeriod(days, 'forever', '2026-10-05'));
 });
+
+test('birds: one for each contribution in the past day', () => {
+  const f = buildForest([day('2026-10-01', 9), day('2026-10-04', 2), day('2026-10-05', 1)], opts);
+  assert.equal(f.stats.today_reviews, 3 * 40);
+});

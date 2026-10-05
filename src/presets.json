@@ -4,41 +4,53 @@
     "landscape": "lake",
     "landmark": "none",
     "weather": "clear",
-    "time": "golden_hour"
+    "time": "golden_hour",
+    "loop": 60,
+    "fps": 12
   },
   "misty_valley": {
     "environment": "misty_valley",
     "landscape": "mountains",
     "landmark": "peak",
     "weather": "fog",
-    "time": "dawn"
+    "time": "dawn",
+    "loop": 4,
+    "fps": 12
   },
   "aurora": {
     "environment": "aurora",
     "landscape": "lake",
     "landmark": "none",
     "weather": "clear",
-    "time": "night"
+    "time": "night",
+    "loop": 4,
+    "fps": 12
   },
   "lanterns": {
     "environment": "lanterns",
     "landscape": "lake",
     "landmark": "moon_bridge",
     "weather": "clear",
-    "time": "night"
+    "time": "night",
+    "loop": 60,
+    "fps": 8
   },
   "bamboo": {
     "environment": "bamboo",
     "landscape": "river",
     "landmark": "none",
     "weather": "rain",
-    "time": "day"
+    "time": "day",
+    "loop": 10,
+    "fps": 12
   },
   "synthwave": {
     "environment": "synthwave",
     "landscape": "meadow",
     "landmark": "none",
     "weather": "clear",
-    "time": "dusk"
+    "time": "dusk",
+    "loop": 4,
+    "fps": 12
   }
 }

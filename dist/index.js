@@ -63308,6 +63308,7 @@ var BREAK_DAYS = 14;
 var MAX_INDIVIDUAL_TREES = 730;
 var PINE_PERCENT = 34;
 var SMALL_PERCENT = 20;
+var REVIEWS_PER_BIRD = 40;
 var BUSIEST = "FOURTH_QUARTILE";
 var VISITORS = [
   ["rabbit", "a rabbit", "your forest reached 50 trees", (s) => s.trees >= 50],
@@ -63391,7 +63392,7 @@ function statsOf(trees, todayN) {
     streak: 0,
     longest_streak: 0,
     reviews: trees.reduce((a2, t) => a2 + t.n, 0),
-    today_reviews: 0,
+    today_reviews: trees.filter((t) => t.ago <= 1).reduce((a2, t) => a2 + t.n, 0) * REVIEWS_PER_BIRD,
     forest_age: trees.length ? todayN - trees[0].day : 0,
     oldest_date: trees.length ? trees[0].date : null,
     planted_today: Boolean(last2 && last2.ago === 0),
@@ -65130,8 +65131,6 @@ function gif(shots, fps, k, text) {
 
 // src/grow.js
 var FORMATS = { apng: "png", png: "png", gif: "gif" };
-var SECONDS = 4;
-var FPS = 12;
 function altText(stats, period, year) {
   const span2 = period === "all" ? "" : period === "last-year" ? " in the last year" : ` in ${period === "this-year" ? year : period}`;
   const trees = `${stats.trees.toLocaleString("en-US")} ${stats.trees === 1 ? "tree" : "trees"}`;
@@ -65165,9 +65164,9 @@ async function grow({
   const files = [];
   for (const [name, key, time] of [["forest", scenery, lightTime], ["forest-dark", darkScenery, null]]) {
     if (!key) continue;
-    const still = format3 === "png";
-    const shots = (await renderFrames(forest, moodOf(key, today, time), { chrome: chrome2, seconds: still ? 1 / FPS : SECONDS, fps: FPS })).shots;
-    const bytes = format3 === "gif" ? gif(shots, FPS, SCALE, text) : still ? png(shots, SCALE, text) : apng(shots, FPS, SCALE, text);
+    const still = format3 === "png", mood = moodOf(key, today, time), { loop, fps } = SCENERIES[key];
+    const shots = (await renderFrames(forest, mood, { chrome: chrome2, seconds: still ? 1 / fps : loop, fps })).shots;
+    const bytes = format3 === "gif" ? gif(shots, fps, SCALE, text) : still ? png(shots, SCALE, text) : apng(shots, fps, SCALE, text);
     const file = path15.join(outDir, `${name}.${FORMATS[format3]}`);
     writeFileSync(file, bytes);
     files.push(file);
