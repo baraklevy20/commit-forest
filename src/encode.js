@@ -1,4 +1,5 @@
-// Frames -> image files. Each canvas pixel becomes a SCALE x SCALE block, with no smoothing.
+// Frames -> image files. Frames are worked on at the canvas's own size (388 x 194) and each
+// canvas pixel becomes a SCALE x SCALE block only when encoded, with no smoothing.
 
 import UPNG from 'upng-js';
 import gifenc from 'gifenc';
@@ -22,28 +23,51 @@ function upscale({ w, h, rgba }, k) {
   return { w: w * k, h: h * k, rgba: out };
 }
 
-// text: the numbers line to draw into each frame, or none
-const frames = (shots, k, text) => shots.map(s => {
-  const f = decode(s);
-  if (text) stamp(f.rgba, f.w, f.h, text);
-  return upscale(f, k);
-});
+/* The canvas's frames (PNG data URLs) as pixels, with the numbers line drawn in (text), if any. */
+export function prepare(shots, text) {
+  return shots.map(s => {
+    const f = decode(s);
+    if (text) stamp(f.rgba, f.w, f.h, text);
+    return f;
+  });
+}
+
+// a 4 x 4 ordered-dither matrix: the order the pixels change in during a dissolve
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+
+/* `steps` frames dissolving from frame a into frame b in an ordered dither, pixel art's own
+ * way of fading: each frame turns one more share of the pixels over, in a fixed pattern. */
+export function dissolve(a, b, steps) {
+  const out = [];
+  for (let i = 1; i <= steps; i++) {
+    const cut = (i / (steps + 1)) * 16, rgba = new Uint8Array(a.rgba);
+    for (let y = 0; y < a.h; y++) {
+      for (let x = 0; x < a.w; x++) {
+        if (BAYER[(y % 4) * 4 + (x % 4)] >= cut) continue;
+        const o = (y * a.w + x) * 4;
+        rgba.set(b.rgba.subarray(o, o + 4), o);
+      }
+    }
+    out.push({ w: a.w, h: a.h, rgba });
+  }
+  return out;
+}
 
 /* An animated PNG: every colour kept, looping for ever. */
-export function apng(shots, fps, k, text) {
-  const f = frames(shots, k, text);
+export function apng(frames, fps, k) {
+  const f = frames.map(x => upscale(x, k));
   return Buffer.from(UPNG.encode(f.map(x => x.rgba.buffer), f[0].w, f[0].h, 0, f.map(() => Math.round(1000 / fps))));
 }
 
 /* The first frame, still. */
-export function png(shots, k, text) {
-  const [f] = frames(shots.slice(0, 1), k, text);
+export function png(frames, k) {
+  const f = upscale(frames[0], k);
   return Buffer.from(UPNG.encode([f.rgba.buffer], f.w, f.h, 0));
 }
 
 /* A GIF with one palette for the whole loop (so colours don't flicker between frames), no dithering. */
-export function gif(shots, fps, k, text) {
-  const f = frames(shots, k, text);
+export function gif(frames, fps, k) {
+  const f = frames.map(x => upscale(x, k));
   // the palette from every frame's pixels, sampled so a long loop stays quick
   const step = Math.max(1, Math.floor(f.length / 8)), sample = [];
   for (let i = 0; i < f.length; i += step) sample.push(f[i].rgba);

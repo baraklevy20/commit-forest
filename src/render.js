@@ -82,9 +82,10 @@ try { AnkiForest.mount(document.getElementById('p'), window.D, { now: true }); }
 catch (e) { window.ERRS.push('mount: ' + (e.stack || e)); }</script>`;
 }
 
-/* One loop of `seconds` as PNG data URLs of the canvas (388 x 194), `fps` a second: the frame
- * after the last is the first again. */
-export async function renderFrames(forest, mood, { chrome, seconds = 4, fps = 12 } = {}) {
+/* `seconds` of the scene as PNG data URLs of the canvas (388 x 194), `fps` a second, with
+ * every motion repeating in `loop` seconds: when the two are the same, the frame after the
+ * last is the first again. */
+export async function renderFrames(forest, mood, { chrome, seconds = 4, fps = 12, loop = seconds } = {}) {
   const browser = await puppeteer.launch({
     executablePath: findChrome(chrome), headless: true,
     args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
@@ -92,7 +93,7 @@ export async function renderFrames(forest, mood, { chrome, seconds = 4, fps = 12
   try {
     const tab = await browser.newPage();
     await tab.setViewport({ width: PANEL_PX + 40, height: 600 });
-    await tab.setContent(page(forest, mood, seconds), { waitUntil: 'load' });
+    await tab.setContent(page(forest, mood, loop), { waitUntil: 'load' });
     const result = await tab.evaluate((frames, step, start) => {
       const c = document.querySelector('canvas'), shots = [];
       if (!c) return { errors: window.ERRS.concat('no canvas was drawn'), shots };

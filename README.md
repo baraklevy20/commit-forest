@@ -50,13 +50,24 @@ settings, private work counts too, as the number of contributions only.
 
 | Input | Default | |
 |---|---|---|
-| `scenery` | `golden_lake` | `golden_lake`, `misty_valley`, `aurora`, `lanterns`, `bamboo` or `synthwave` |
-| `dark_scenery` | `aurora` | Shown to people who use GitHub in dark mode. Empty for none. |
+| `scenery` | `golden_lake` | `golden_lake`, `misty_valley`, `aurora`, `lanterns`, `bamboo` or `synthwave`; `daily` for a different one each day; or `shuffle` for all of them in turn in one image, each dissolving into the next |
+| `dark_scenery` | `aurora` | Shown to people who use GitHub in dark mode, with the same choices. Empty for none. |
+| `sceneries` | `all` | Which sceneries `daily` and `shuffle` choose from, such as `aurora,lanterns,synthwave` |
+| `gallery` | none | Also draw one image per scenery, named `forest-<scenery>.png`: `all`, or a list such as `golden_lake,bamboo` |
 | `period` | `last-year` | `last-year` for the same year as the calendar on your profile (the numbers match it), `this-year` for the current calendar year, `all` for your whole history, or a year such as `2025` |
 | `stats` | `true` | The number of trees and contributions, in small pixel letters at the bottom |
 | `timezone` | none | Your time zone, such as `Europe/Berlin`. The light image then shows dawn, day, golden hour, dusk or night where you are. Change the schedule to `cron: "0 * * * *"` so it redraws every hour. |
 | `format` | `apng` | `apng` (animated PNG), `gif`, or `png` (still) |
 | `branch` | `output` | Where the images go. It holds only the latest images. |
+
+To show several sceneries side by side, set `gallery: all` and put the images in a table:
+
+```html
+<table><tr>
+  <td><img alt="Golden hour by the lake" src="https://raw.githubusercontent.com/<you>/<you>/output/forest-golden_lake.png"></td>
+  <td><img alt="Misty valley" src="https://raw.githubusercontent.com/<you>/<you>/output/forest-misty_valley.png"></td>
+</tr></table>
+```
 
 `@v1` always points at the latest 1.x release, so fixes reach you without changing
 anything. To stay on one release, use its full tag, such as `@v1.0.0`.

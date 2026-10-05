@@ -37883,11 +37883,11 @@ var init_ExposedFunction = __esm({
             }
           });
         }, { name: JSON.stringify(this.name) }));
-        const frames2 = [this.#frame];
-        for (const frame of frames2) {
-          frames2.push(...frame.childFrames());
+        const frames = [this.#frame];
+        for (const frame of frames) {
+          frames.push(...frame.childFrames());
         }
-        await Promise.all(frames2.map(async (frame) => {
+        await Promise.all(frames.map(async (frame) => {
           const realm = this.#isolate ? frame.isolatedRealm() : frame.mainRealm();
           try {
             const [script] = await Promise.all([
@@ -37987,12 +37987,12 @@ var init_ExposedFunction = __esm({
         return frame.realm(source2.realm);
       }
       #findFrame(id) {
-        const frames2 = [this.#frame];
-        for (const frame of frames2) {
+        const frames = [this.#frame];
+        for (const frame of frames) {
           if (frame._id === id) {
             return frame;
           }
-          frames2.push(...frame.childFrames());
+          frames.push(...frame.childFrames());
         }
         return;
       }
@@ -39363,7 +39363,7 @@ var init_Frame3 = __esm({
         }
         async waitForNavigation(options = {}) {
           const { timeout: ms = this.timeoutSettings.navigationTimeout(), signal } = options;
-          const frames2 = this.childFrames().map((frame) => {
+          const frames = this.childFrames().map((frame) => {
             return frame.#detached$();
           });
           return await firstValueFrom(combineLatest([
@@ -39374,10 +39374,10 @@ var init_Frame3 = __esm({
                 return of(null);
               }
               return this.#waitForLoad$(options).pipe(delayWhen(() => {
-                if (frames2.length === 0) {
+                if (frames.length === 0) {
                   return of(void 0);
                 }
-                return combineLatest(frames2);
+                return combineLatest(frames);
               }), raceWith(fromEmitterEvent(navigation, "fragment"), fromEmitterEvent(navigation, "failed"), fromEmitterEvent(navigation, "aborted")), switchMap(() => {
                 if (navigation.request) {
                   let requestFinished$ = function(request3) {
@@ -40640,11 +40640,11 @@ var init_Page3 = __esm({
           }
         }
         frames() {
-          const frames2 = [this.#frame];
-          for (const frame of frames2) {
-            frames2.push(...frame.childFrames());
+          const frames = [this.#frame];
+          for (const frame of frames) {
+            frames.push(...frame.childFrames());
           }
-          return frames2;
+          return frames;
         }
         isClosed() {
           return this.#frame.detached;
@@ -41497,8 +41497,8 @@ var init_BrowserContext3 = __esm({
           return page2;
         }
         targets() {
-          return [...this.#targets.values()].flatMap(([target, frames2]) => {
-            return [target, ...frames2.values()];
+          return [...this.#targets.values()].flatMap(([target, frames]) => {
+            return [target, ...frames.values()];
           });
         }
         /**
@@ -64977,7 +64977,7 @@ NOW_MS = ${START_MS};
 try { AnkiForest.mount(document.getElementById('p'), window.D, { now: true }); }
 catch (e) { window.ERRS.push('mount: ' + (e.stack || e)); }</script>`;
 }
-async function renderFrames(forest, mood, { chrome: chrome2, seconds = 4, fps = 12 } = {}) {
+async function renderFrames(forest, mood, { chrome: chrome2, seconds = 4, fps = 12, loop = seconds } = {}) {
   const browser = await puppeteer_core_default.launch({
     executablePath: findChrome(chrome2),
     headless: true,
@@ -64986,11 +64986,11 @@ async function renderFrames(forest, mood, { chrome: chrome2, seconds = 4, fps = 
   try {
     const tab = await browser.newPage();
     await tab.setViewport({ width: PANEL_PX + 40, height: 600 });
-    await tab.setContent(page(forest, mood, seconds), { waitUntil: "load" });
-    const result = await tab.evaluate((frames2, step, start) => {
+    await tab.setContent(page(forest, mood, loop), { waitUntil: "load" });
+    const result = await tab.evaluate((frames, step, start) => {
       const c = document.querySelector("canvas"), shots = [];
       if (!c) return { errors: window.ERRS.concat("no canvas was drawn"), shots };
-      for (let i = 0; i < frames2; i++) {
+      for (let i = 0; i < frames; i++) {
         pump(start + i * step);
         shots.push(c.toDataURL("image/png"));
       }
@@ -65103,21 +65103,39 @@ function upscale({ w: w2, h, rgba }, k) {
   }
   return { w: w2 * k, h: h * k, rgba: out };
 }
-var frames = (shots, k, text) => shots.map((s) => {
-  const f = decode(s);
-  if (text) stamp(f.rgba, f.w, f.h, text);
-  return upscale(f, k);
-});
-function apng(shots, fps, k, text) {
-  const f = frames(shots, k, text);
+function prepare(shots, text) {
+  return shots.map((s) => {
+    const f = decode(s);
+    if (text) stamp(f.rgba, f.w, f.h, text);
+    return f;
+  });
+}
+var BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+function dissolve(a2, b2, steps) {
+  const out = [];
+  for (let i = 1; i <= steps; i++) {
+    const cut = i / (steps + 1) * 16, rgba = new Uint8Array(a2.rgba);
+    for (let y = 0; y < a2.h; y++) {
+      for (let x2 = 0; x2 < a2.w; x2++) {
+        if (BAYER[y % 4 * 4 + x2 % 4] >= cut) continue;
+        const o = (y * a2.w + x2) * 4;
+        rgba.set(b2.rgba.subarray(o, o + 4), o);
+      }
+    }
+    out.push({ w: a2.w, h: a2.h, rgba });
+  }
+  return out;
+}
+function apng(frames, fps, k) {
+  const f = frames.map((x2) => upscale(x2, k));
   return Buffer.from(import_upng_js.default.encode(f.map((x2) => x2.rgba.buffer), f[0].w, f[0].h, 0, f.map(() => Math.round(1e3 / fps))));
 }
-function png(shots, k, text) {
-  const [f] = frames(shots.slice(0, 1), k, text);
+function png(frames, k) {
+  const f = upscale(frames[0], k);
   return Buffer.from(import_upng_js.default.encode([f.rgba.buffer], f.w, f.h, 0));
 }
-function gif(shots, fps, k, text) {
-  const f = frames(shots, k, text);
+function gif(frames, fps, k) {
+  const f = frames.map((x2) => upscale(x2, k));
   const step = Math.max(1, Math.floor(f.length / 8)), sample = [];
   for (let i = 0; i < f.length; i += step) sample.push(f[i].rgba);
   const all = new Uint8Array(sample.reduce((a2, s) => a2 + s.length, 0));
@@ -65131,6 +65149,9 @@ function gif(shots, fps, k, text) {
 
 // src/grow.js
 var FORMATS = { apng: "png", png: "png", gif: "gif" };
+var SHUFFLE_SECONDS = 5;
+var SHUFFLE_FPS = 12;
+var DISSOLVE_FRAMES = 6;
 function altText(stats, period, year) {
   const span2 = period === "all" ? "" : period === "last-year" ? " in the last year" : ` in ${period === "this-year" ? year : period}`;
   const trees = `${stats.trees.toLocaleString("en-US")} ${stats.trees === 1 ? "tree" : "trees"}`;
@@ -65140,11 +65161,23 @@ function hourIn(timezone, now = /* @__PURE__ */ new Date()) {
   const h = new Intl.DateTimeFormat("en-US", { timeZone: timezone, hour: "numeric", hourCycle: "h23" }).format(now);
   return Number(h);
 }
+function sceneryList(text) {
+  if (!text || text.trim() === "all") return Object.keys(SCENERIES);
+  const keys = text.split(",").map((s) => s.trim()).filter(Boolean);
+  const unknown = keys.filter((k) => !SCENERIES[k]);
+  if (unknown.length) throw new Error(`no scenery called ${unknown.join(", ")}; there are: ${Object.keys(SCENERIES).join(", ")}`);
+  return keys;
+}
+function dailyScenery(list, login, today) {
+  return list[seedOf(`${login.toLowerCase()}:daily:${today}`) % list.length];
+}
 async function grow({
   login,
   token,
-  scenery,
+  scenery = "golden_lake",
   darkScenery,
+  sceneries,
+  gallery,
   period = "last-year",
   format: format3 = "apng",
   stats = true,
@@ -65159,14 +65192,39 @@ async function grow({
   const forest = buildForest(inPeriod(fetched.days, period, today), { login, today });
   const year = today.slice(0, 4);
   const text = stats ? statsLine(forest.stats, period, year) : null;
+  const pool = sceneryList(sceneries);
   const lightTime = timezone ? timeAt(hourIn(timezone)) : null;
+  const still = format3 === "png";
+  const scene = async (key, time) => {
+    const { loop, fps } = SCENERIES[key];
+    const shots = (await renderFrames(forest, moodOf(key, today, time), { chrome: chrome2, seconds: still ? 1 / fps : loop, fps, loop })).shots;
+    return { frames: prepare(shots, text), fps };
+  };
+  const shuffle = async (keys, time) => {
+    const parts = [];
+    for (const key of keys) {
+      const { loop } = SCENERIES[key], seconds = still ? 1 / SHUFFLE_FPS : Math.min(loop, SHUFFLE_SECONDS);
+      const shots = (await renderFrames(forest, moodOf(key, today, time), { chrome: chrome2, seconds, fps: SHUFFLE_FPS, loop })).shots;
+      parts.push(prepare(shots, text));
+    }
+    if (still) return { frames: parts[0], fps: SHUFFLE_FPS };
+    const frames = parts.flatMap((p, i) => [...p, ...dissolve(p[p.length - 1], parts[(i + 1) % parts.length][0], DISSOLVE_FRAMES)]);
+    return { frames, fps: SHUFFLE_FPS };
+  };
+  const draw = (choice, time) => {
+    if (choice === "shuffle") return shuffle(pool, time);
+    const key = choice === "daily" ? dailyScenery(pool, login, today) : choice;
+    if (!SCENERIES[key]) throw new Error(`no scenery called ${key}; there are: ${Object.keys(SCENERIES).join(", ")}, daily, shuffle`);
+    return scene(key, time);
+  };
+  const wanted = [["forest", scenery, lightTime], ["forest-dark", darkScenery, null]];
+  if (gallery) for (const key of sceneryList(gallery)) wanted.push([`forest-${key}`, key, null]);
   mkdirSync(outDir, { recursive: true });
   const files = [];
-  for (const [name, key, time] of [["forest", scenery, lightTime], ["forest-dark", darkScenery, null]]) {
-    if (!key) continue;
-    const still = format3 === "png", mood = moodOf(key, today, time), { loop, fps } = SCENERIES[key];
-    const shots = (await renderFrames(forest, mood, { chrome: chrome2, seconds: still ? 1 / fps : loop, fps })).shots;
-    const bytes = format3 === "gif" ? gif(shots, fps, SCALE, text) : still ? png(shots, SCALE, text) : apng(shots, fps, SCALE, text);
+  for (const [name, choice, time] of wanted) {
+    if (!choice) continue;
+    const { frames, fps } = await draw(choice, time);
+    const bytes = format3 === "gif" ? gif(frames, fps, SCALE) : still ? png(frames, SCALE) : apng(frames, fps, SCALE);
     const file = path15.join(outDir, `${name}.${FORMATS[format3]}`);
     writeFileSync(file, bytes);
     files.push(file);
@@ -65231,6 +65289,8 @@ async function main() {
       token,
       scenery: input2("scenery") || "golden_lake",
       darkScenery: input2("dark_scenery"),
+      sceneries: input2("sceneries") || "all",
+      gallery: input2("gallery"),
       period,
       format: input2("format") || "apng",
       chrome: input2("chrome"),

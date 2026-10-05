@@ -32,6 +32,7 @@ async function main() {
     const { forest, files, alt } = await grow({
       login: input('user') || repo.split('/')[0], token,
       scenery: input('scenery') || 'golden_lake', darkScenery: input('dark_scenery'),
+      sceneries: input('sceneries') || 'all', gallery: input('gallery'),
       period, format: input('format') || 'apng', chrome: input('chrome'),
       stats: input('stats') !== 'false', timezone: input('timezone') || undefined,
       outDir: path.join(os.tmpdir(), 'commit-forest-out'),

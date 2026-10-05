@@ -71,3 +71,14 @@ test('birds: one for each contribution in the past day', () => {
   const f = buildForest([day('2026-10-01', 9), day('2026-10-04', 2), day('2026-10-05', 1)], opts);
   assert.equal(f.stats.today_reviews, 3 * 40);
 });
+
+test('daily scenery: the same all day, from the given list, changing between days', async () => {
+  const { dailyScenery, sceneryList } = await import('../src/grow.js');
+  const list = sceneryList('aurora, bamboo,synthwave');
+  assert.deepEqual(list, ['aurora', 'bamboo', 'synthwave']);
+  assert.equal(dailyScenery(list, 'someone', '2026-10-05'), dailyScenery(list, 'SomeOne', '2026-10-05'));
+  const week = new Set(Array.from({ length: 14 }, (_, i) => dailyScenery(list, 'someone', `2026-10-${String(i + 1).padStart(2, '0')}`)));
+  assert.ok(week.size > 1 && [...week].every(k => list.includes(k)));
+  assert.equal(sceneryList('all').length, 6);
+  assert.throws(() => sceneryList('aurora,cherry_blossom'));
+});

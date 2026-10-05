@@ -9,11 +9,17 @@ inputs:
     description: Whose contributions grow the forest.
     default: ${{ github.repository_owner }}
   scenery:
-    description: "The scenery for light mode: golden_lake, misty_valley, aurora, lanterns, bamboo or synthwave."
+    description: "The scenery for light mode: golden_lake, misty_valley, aurora, lanterns, bamboo or synthwave; daily for a different one each day; or shuffle for all of them in turn in one image."
     default: golden_lake
   dark_scenery:
-    description: The scenery for dark mode. Empty for no dark image.
+    description: The scenery for dark mode, with the same choices. Empty for no dark image.
     default: aurora
+  sceneries:
+    description: "Which sceneries daily and shuffle choose from, separated by commas, or all."
+    default: all
+  gallery:
+    description: "Also draw one image per scenery (forest-<scenery>.png), for these sceneries separated by commas, or all. Empty for none."
+    default: ""
   period:
     description: "Which contributions: last-year (the same year as the calendar on your profile), this-year (the current calendar year), all (your whole history), or a year such as 2025."
     default: last-year
