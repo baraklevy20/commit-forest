@@ -1,0 +1,44 @@
+{
+  "golden_lake": {
+    "environment": "natural",
+    "landscape": "lake",
+    "landmark": "none",
+    "weather": "clear",
+    "time": "golden_hour"
+  },
+  "misty_valley": {
+    "environment": "misty_valley",
+    "landscape": "mountains",
+    "landmark": "peak",
+    "weather": "fog",
+    "time": "dawn"
+  },
+  "aurora": {
+    "environment": "aurora",
+    "landscape": "lake",
+    "landmark": "none",
+    "weather": "clear",
+    "time": "night"
+  },
+  "lanterns": {
+    "environment": "lanterns",
+    "landscape": "lake",
+    "landmark": "moon_bridge",
+    "weather": "clear",
+    "time": "night"
+  },
+  "bamboo": {
+    "environment": "bamboo",
+    "landscape": "river",
+    "landmark": "none",
+    "weather": "rain",
+    "time": "day"
+  },
+  "synthwave": {
+    "environment": "synthwave",
+    "landscape": "meadow",
+    "landmark": "none",
+    "weather": "clear",
+    "time": "dusk"
+  }
+}

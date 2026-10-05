@@ -1,0 +1,21 @@
+name: ci
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci
+      - run: npm test
+      - name: dist/ is built from src/
+        run: npm run build && git diff --exit-code dist/
+      - name: Draw a forest on the runner, without pushing it
+        run: |
+          COMMIT_FOREST_DRY_RUN=1 INPUT_USER=${{ github.repository_owner }} INPUT_TOKEN=${{ github.token }} \
+          INPUT_SCENERY=golden_lake INPUT_DARK_SCENERY=aurora node dist/index.js | tee summary.txt
+          grep -q "Your forest has" summary.txt
+          ls -la /tmp/commit-forest-out

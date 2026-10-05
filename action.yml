@@ -1,0 +1,40 @@
+name: Commit Forest
+description: A pixel forest for your profile README. One tree for every day you contributed.
+author: baraklevy20
+branding:
+  icon: feather
+  color: green
+inputs:
+  user:
+    description: Whose contributions grow the forest.
+    default: ${{ github.repository_owner }}
+  scenery:
+    description: "The scenery for light mode: golden_lake, misty_valley, aurora, lanterns, bamboo or synthwave."
+    default: golden_lake
+  dark_scenery:
+    description: The scenery for dark mode. Empty for no dark image.
+    default: aurora
+  period:
+    description: "Which contributions: this-year (the current calendar year), last-year (the past 12 months, like the calendar), all (your whole history), or a year such as 2025."
+    default: this-year
+  stats:
+    description: Show the number of trees and contributions in the image.
+    default: "true"
+  timezone:
+    description: "Your time zone, such as Europe/Berlin. The light image then shows the time of day where you are; run the workflow every hour for it to keep up."
+    default: ""
+  format:
+    description: "apng (animated PNG), gif, or png (still)."
+    default: apng
+  branch:
+    description: The branch the images are pushed to.
+    default: output
+  token:
+    description: Reads your contribution calendar. The workflow's own token is enough.
+    default: ${{ github.token }}
+  chrome:
+    description: Path to Chrome. Found on its own on GitHub's runners.
+    default: ""
+runs:
+  using: node24
+  main: dist/index.js
