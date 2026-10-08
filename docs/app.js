@@ -386,6 +386,9 @@ var el = {
   showDark: $("show-dark"),
   yaml: $("yaml"),
   snippet: $("snippet"),
+  loading: $("loading"),
+  loadingText: $("loading-text"),
+  load: $("load"),
   addLink: $("add-link"),
   addWrap: $("add-wrap"),
   repoLink: $("repo-link")
@@ -410,6 +413,12 @@ var settings = () => ({
   label: el.label.checked,
   stats: el.stats.checked
 });
+function busy(text) {
+  el.loading.hidden = !text;
+  if (text) el.loadingText.textContent = text;
+  el.load.disabled = Boolean(text);
+  el.load.textContent = text ? "Loading" : "Show";
+}
 function setStatus(text, bad = false) {
   el.status.textContent = text;
   el.status.classList.toggle("bad", bad);
@@ -444,7 +453,7 @@ function madeUpDays() {
     const count = active ? 1 + Math.floor(rand() * rand() * 20) : 0;
     days.push({ date, count, level: active && rand() < 0.2 ? "FOURTH_QUARTILE" : "OTHER" });
   }
-  return { login: el.user.value.trim() || "you", days, today };
+  return { login: el.user.value.trim() || "you", days, today, madeUp: true };
 }
 async function load() {
   const login = el.user.value.trim();
@@ -452,14 +461,16 @@ async function load() {
     calendar = madeUpDays();
     setStatus(login ? "A made-up history." : "A made-up history. Type a username to see a real one.");
   } else {
-    setStatus(`Reading ${login}'s contributions...`);
+    setStatus("");
+    busy(`Reading ${login}'s contributions`);
     try {
       calendar = await fetchDays(login, el.period.value);
-      setStatus("");
     } catch (e) {
       const reason = e instanceof TypeError ? "The contribution calendar could not be reached just now." : e.message;
       calendar = { ...madeUpDays(), login };
       setStatus(`${reason} Showing a made-up history for now.`, true);
+    } finally {
+      busy(null);
     }
   }
   updateUrl();
@@ -468,7 +479,12 @@ async function load() {
 }
 function forestNow() {
   const { period } = settings();
-  return buildForest(inPeriod(calendar.days, period, calendar.today), { login: calendar.login, today: calendar.today });
+  let days = inPeriod(calendar.days, period, calendar.today);
+  if (period === "last-year" && calendar.madeUp) {
+    const from = new Date(Date.parse(calendar.today + "T00:00:00Z") - 364 * 864e5).toISOString().slice(0, 10);
+    days = days.filter((d) => d.date >= from);
+  }
+  return buildForest(days, { login: calendar.login, today: calendar.today });
 }
 function scale() {
   const s = Math.min(1, el.stage.clientWidth / PANEL_PX);
