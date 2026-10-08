@@ -431,7 +431,7 @@ async function fetchDays(login, period) {
   if (!res.ok) throw new Error("The contribution calendar could not be read just now. Try again, or use a made-up history.");
   const body = await res.json();
   const today = todayIso();
-  const days = body.contributions.filter((d) => d.date <= today).map((d) => ({ date: d.date, count: d.count, level: d.level === 4 ? "FOURTH_QUARTILE" : "OTHER" }));
+  const days = body.contributions.filter((d) => d.date <= today).map((d) => ({ date: d.date, count: d.count, level: d.level === 4 ? "FOURTH_QUARTILE" : "OTHER" })).sort((a, b) => a.date.localeCompare(b.date));
   return { login, days, today: days.length ? days[days.length - 1].date : today };
 }
 function madeUpDays() {

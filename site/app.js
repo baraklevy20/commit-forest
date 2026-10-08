@@ -72,8 +72,10 @@ async function fetchDays(login, period) {
   const body = await res.json();
   const today = todayIso();
   // level 4 is the darkest square, which grows a broad crown
+  // (the whole history comes newest first, a year oldest first: put every list in date order)
   const days = body.contributions.filter(d => d.date <= today)
-    .map(d => ({ date: d.date, count: d.count, level: d.level === 4 ? 'FOURTH_QUARTILE' : 'OTHER' }));
+    .map(d => ({ date: d.date, count: d.count, level: d.level === 4 ? 'FOURTH_QUARTILE' : 'OTHER' }))
+    .sort((a, b) => a.date.localeCompare(b.date));
   return { login, days, today: days.length ? days[days.length - 1].date : today };
 }
 
