@@ -6,13 +6,15 @@ import gifenc from 'gifenc';
 import { stamp } from './stamp.js';
 
 const { GIFEncoder, quantize, applyPalette } = gifenc;
+// each canvas pixel becomes a SCALE x SCALE block: 388 x 194 becomes 776 x 388
+const SCALE = 2;
 
 function decode(dataUrl) {
   const png = UPNG.decode(Buffer.from(dataUrl.split(',', 2)[1], 'base64'));
   return { w: png.width, h: png.height, rgba: new Uint8Array(UPNG.toRGBA8(png)[0]) };
 }
 
-function upscale({ w, h, rgba }, k) {
+function upscale({ w, h, rgba }, k = SCALE) {
   const out = new Uint8Array(w * k * h * k * 4), row = w * k * 4;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
@@ -23,11 +25,12 @@ function upscale({ w, h, rgba }, k) {
   return { w: w * k, h: h * k, rgba: out };
 }
 
-/* The canvas's frames (PNG data URLs) as pixels, with the numbers line drawn in (text), if any. */
-export function prepare(shots, text) {
+/* The canvas's frames (PNG data URLs) as pixels, with lines of text drawn in:
+ * [{ text, top }], the label at the top and the numbers at the bottom. */
+export function prepare(shots, lines = []) {
   return shots.map(s => {
     const f = decode(s);
-    if (text) stamp(f.rgba, f.w, f.h, text);
+    for (const { text, top } of lines) stamp(f.rgba, f.w, f.h, text, { top });
     return f;
   });
 }
@@ -54,25 +57,24 @@ export function dissolve(a, b, steps) {
 }
 
 /* An animated PNG: every colour kept, looping for ever. */
-export function apng(frames, fps, k) {
-  const f = frames.map(x => upscale(x, k));
+export function apng(frames, fps) {
+  const f = frames.map(x => upscale(x));
   return Buffer.from(UPNG.encode(f.map(x => x.rgba.buffer), f[0].w, f[0].h, 0, f.map(() => Math.round(1000 / fps))));
 }
 
 /* The first frame, still. */
-export function png(frames, k) {
-  const f = upscale(frames[0], k);
+export function png(frames) {
+  const f = upscale(frames[0]);
   return Buffer.from(UPNG.encode([f.rgba.buffer], f.w, f.h, 0));
 }
 
 /* A GIF with one palette for the whole loop (so colours don't flicker between frames), no dithering. */
-export function gif(frames, fps, k) {
-  const f = frames.map(x => upscale(x, k));
+export function gif(frames, fps) {
+  const f = frames.map(x => upscale(x));
   // the palette from every frame's pixels, sampled so a long loop stays quick
-  const step = Math.max(1, Math.floor(f.length / 8)), sample = [];
-  for (let i = 0; i < f.length; i += step) sample.push(f[i].rgba);
-  const all = new Uint8Array(sample.reduce((a, s) => a + s.length, 0));
-  sample.reduce((o, s) => (all.set(s, o), o + s.length), 0);
+  const step = Math.max(1, Math.floor(f.length / 8)), sample = f.filter((_, i) => i % step === 0);
+  const all = new Uint8Array(sample.length * f[0].rgba.length);
+  sample.forEach((x, i) => all.set(x.rgba, i * x.rgba.length));
   const palette = quantize(all, 256);
   const enc = GIFEncoder();
   for (const x of f) enc.writeFrame(applyPalette(x.rgba, palette), x.w, x.h, { palette, delay: Math.round(1000 / fps), repeat: 0 });

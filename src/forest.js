@@ -1,7 +1,7 @@
 // Contribution days -> the forest the engine draws: one tree per day with a contribution.
 // The rules mirror the add-on's forest_data.py, with GitHub's numbers in place of reviews.
 
-import { createHash } from 'node:crypto';
+import { sha1Head } from './sha1.js';
 
 // a tree's stage, by its age in days (the add-on's stages, with age standing in for memory)
 export const SEEDLING = 0, SAPLING = 1, YOUNG = 2, MATURE = 3, OLD = 4, ANCIENT = 5;
@@ -34,7 +34,7 @@ const dayNumber = iso => Math.round(Date.parse(iso + 'T00:00:00Z') / DAY_MS);
 const isoOf = n => new Date(n * DAY_MS).toISOString().slice(0, 10);
 
 export function seedOf(text) {
-  return createHash('sha1').update(text).digest().readUInt32BE(0) & 0x7fffffff;
+  return sha1Head(text) & 0x7fffffff;
 }
 
 function stageOf(ago) {
@@ -46,14 +46,12 @@ function stageOf(ago) {
   return ANCIENT;
 }
 
-/* The days a period covers, from a calendar that may hold more: 'this-year' (the calendar
- * year of today), a year ('2025'), or 'last-year' and 'all', which keep every day given
- * (the calendar fetched for them is already that span). */
+/* The days of a year period ('this-year' or '2025') from a calendar that may hold more;
+ * 'last-year' and 'all' keep every day, since the calendar fetched for them is that span.
+ * (fetchCalendar has already checked the period.) */
 export function inPeriod(days, period, today) {
-  if (period === 'all' || period === 'last-year') return days;
-  if (!period || period === 'this-year') return days.filter(d => d.date.startsWith(today.slice(0, 4) + '-'));
-  if (/^\d{4}$/.test(period)) return days.filter(d => d.date.startsWith(period + '-'));
-  throw new Error(`period must be last-year, this-year, all or a year like 2025, not "${period}"`);
+  const year = period === 'this-year' ? today.slice(0, 4) : /^\d{4}$/.test(period) ? period : null;
+  return year ? days.filter(d => d.date.startsWith(year + '-')) : days;
 }
 
 /* days: [{ date: 'YYYY-MM-DD', count, level }] from the calendar, any order; today: 'YYYY-MM-DD'.
@@ -75,7 +73,8 @@ export function buildForest(days, { login, today, cap = MAX_INDIVIDUAL_TREES }) 
   const stats = statsOf(trees, todayN);
   const visitors = VISITORS.filter(([, , , test]) => test(stats))
     .map(([key, label, why]) => ({ key, label, why, new: false }));
-  return mergeOld({ trees, stats, visitors, forest_seed: seedOf(login.toLowerCase()) }, cap);
+  // day_number: today, for what the engine varies from day to day (where the animals stand)
+  return mergeOld({ trees, stats, visitors, forest_seed: seedOf(login.toLowerCase()), day_number: todayN }, cap);
 }
 
 /* Mark each break of BREAK_DAYS or more on the first tree planted after it, as the add-on's

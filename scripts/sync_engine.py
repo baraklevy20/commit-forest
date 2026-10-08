@@ -7,6 +7,9 @@ in the add-on reaches people's profiles only when it is synced here and released
 copy is the scripts every forest loads (catalog.SCRIPTS, in order) followed by the files
 the sceneries in SCENERIES draw with, joined into one file. The scenery looks themselves
 go to src/presets.json.
+
+It copies the add-on as of its last commit, never work in progress there: commit in the
+add-on first, then sync.
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -37,8 +41,30 @@ SCENERIES = {
 }
 
 
+def write_json(path: str, value) -> None:
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(value, f, indent=2)
+        f.write("\n")
+
+
+def committed_copy(addon: str, into: str) -> str:
+    """The add-on's folder as of its repository's HEAD, unpacked under `into`."""
+    def git(*args: str, cwd: str = addon) -> str:
+        return subprocess.run(["git", *args], cwd=cwd, capture_output=True, check=True).stdout
+    top, prefix = git("rev-parse", "--show-toplevel").decode().strip(), git("rev-parse", "--show-prefix").decode().strip()
+    # (a tree path like HEAD:anki_forest is read from the top of the repository)
+    tar = git("archive", "--format=tar", f"HEAD:{prefix.rstrip('/')}" if prefix else "HEAD", cwd=top)
+    subprocess.run(["tar", "-x", "-C", into], input=tar, check=True)
+    return into
+
+
 def main() -> None:
-    addon = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else DEFAULT_ADDON)
+    source_dir = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else DEFAULT_ADDON)
+    with tempfile.TemporaryDirectory() as tmp:
+        sync(source_dir, committed_copy(source_dir, tmp))
+
+
+def sync(source_dir: str, addon: str) -> None:
     sys.path.insert(0, addon)
     import catalog
     import presets
@@ -46,7 +72,7 @@ def main() -> None:
     with open(os.path.join(addon, "editions.json"), encoding="utf-8") as f:
         base_envs = set(json.load(f)["base"]["envs"])
     by_key = {p.key: p for p in presets.FOREST_PRESETS}
-    looks, scenery_files = {}, []
+    looks, scenery_files = {}, []  # looks: each scenery's preset, for src/presets.json
     for key in SCENERIES:
         cfg = dict(by_key[key].values())
         if cfg["environment"] not in base_envs:
@@ -59,24 +85,20 @@ def main() -> None:
             if name and os.path.exists(os.path.join(catalog.WEB, rel)) and rel not in scenery_files:
                 scenery_files.append(rel)
 
+    files = list(catalog.SCRIPTS) + scenery_files
     parts = []
-    for rel in list(catalog.SCRIPTS) + scenery_files:
+    for rel in files:
         with open(os.path.join(catalog.WEB, rel), encoding="utf-8") as f:
             parts.append(f"/* ---- {rel} ---- */\n{f.read()}")
     os.makedirs(os.path.join(REPO, "engine"), exist_ok=True)
     with open(os.path.join(REPO, "engine", "forest-engine.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join(parts))
-    with open(os.path.join(REPO, "src", "presets.json"), "w", encoding="utf-8") as f:
-        json.dump(looks, f, indent=2)
-        f.write("\n")
+    write_json(os.path.join(REPO, "src", "presets.json"), looks)
 
-    commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=addon, capture_output=True, text=True).stdout.strip()
-    dirty = bool(subprocess.run(["git", "status", "--porcelain", "--", "web"], cwd=addon, capture_output=True, text=True).stdout.strip())
-    source = {"addon_commit": commit + ("+changes" if dirty else ""), "synced": dt.date.today().isoformat(),
-              "files": list(catalog.SCRIPTS) + scenery_files}
-    with open(os.path.join(REPO, "engine", "SOURCE.json"), "w", encoding="utf-8") as f:
-        json.dump(source, f, indent=2)
-        f.write("\n")
+    commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=source_dir, capture_output=True, text=True, check=True).stdout.strip()
+    source = {"addon_commit": commit, "synced": dt.datetime.now(dt.timezone.utc).date().isoformat(),
+              "files": files}
+    write_json(os.path.join(REPO, "engine", "SOURCE.json"), source)
     print(f"engine/forest-engine.txt: {len(parts)} files from {source['addon_commit']}; sceneries: {', '.join(SCENERIES)}")
 
 

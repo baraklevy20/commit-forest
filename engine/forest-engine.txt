@@ -579,7 +579,7 @@ AF.drawVisitors = function (g, env, t) {
     const spr = VISITORS.cabin, frame = spr.frames[0], x0 = way.cabinX, y0 = baseY - frame.length, lit = env.mood.time === 'night' || env.mood.time === 'dusk';
     paintSprite(g, frame, x0, y0, spr.pal, (col, ch) => ch === 'n' && lit ? '#ffd27a' : color(col));
     if (lit) { g.fillStyle = 'rgba(255,210,122,.18)'; g.fillRect(x0 + 6, y0 + 6, 4, 4); }
-    else if (!env.theme.rain) for (let k = 0; k < CABIN_SMOKE_PUFFS; k++) { const q = (t * 0.25 + k / CABIN_SMOKE_PUFFS) % 1, sx = x0 + 6 + Math.round(Math.sin(q * 6 + k) * 1.5 + q * 4), sy = y0 - Math.round(q * 12); g.fillStyle = `rgba(220,220,225,${0.55 * (1 - q)})`; g.fillRect(sx, sy, q > 0.5 ? 2 : 1, 1); }
+    else if (!env.theme.rain) for (let k = 0; k < CABIN_SMOKE_PUFFS; k++) { const q = ((AF.LOOP ? t / AF.u.per(4) : t * 0.25) + k / CABIN_SMOKE_PUFFS) % 1, sx = x0 + 6 + Math.round(Math.sin(q * 6 + k) * 1.5 + q * 4), sy = y0 - Math.round(q * 12); g.fillStyle = `rgba(220,220,225,${0.55 * (1 - q)})`; g.fillRect(sx, sy, q > 0.5 ? 2 : 1, 1); }
     env.visitorBoxes.push({ v: cabin, x0, y0, x1: x0 + frame[0].length, y1: baseY });
   }
   // Each animal has its own stretch of the front, shuffled daily. Every few minutes it
@@ -808,20 +808,20 @@ AF.caption = function (root, data) {
   if (data.weatherError) {
     const lost = data.weatherError.startsWith('city not found');
     items.push([lost ? 'City not found' : 'Live weather unavailable', lost
-      ? "Open-Meteo does not know that city, so the scenery keeps its own weather. Check the spelling, or try its English name, in the forest settings."
+      ? "OpenStreetMap does not know that city, so the scenery keeps its own weather. Check the spelling, or try its English name, in the forest settings."
       : `The live weather could not be fetched (${data.weatherError}), so the scenery keeps its own weather for now.`]);
   }
   // the weather only when it is live; otherwise it is simply part of the preset
   if (m.source === 'real') {
     items.push([`Weather: ${WEATHER_NAMES[m.weather] || m.weather}${m.city ? ` in ${m.city}` : ''}${m.temp != null ? `, ${Math.round(m.temp)}°` : ''}`,
-      'Live weather from Open-Meteo.']);
+      'Live weather from MET Norway (CC BY 4.0).']);
   }
   // an item's click is a message for Anki, or something done right here on the page
   root.afCaptionActs = items.map(([, , cmd]) => typeof cmd === 'function' ? cmd : null);
   root.querySelector('.af-meta').innerHTML = items.map(([t, tip, cmd], i) => typeof cmd === 'function'
     ? `<span class="af-info af-click" data-tip="${esc(tip)}" data-act="${i}">${esc(t)}</span>`
     : `<span class="af-info${cmd && canBrowse() ? ' af-click' : ''}" data-tip="${esc(tip)}"${cmd ? ` data-cmd="${esc(cmd)}"` : ''}>${esc(t)}</span>`).join(' · ')
-    + (data.credit ? ' <span class="af-credit">· weather by Open-Meteo</span>' : '');
+    + (data.credit ? ' <span class="af-credit">· weather by MET Norway</span>' : '');
 };
 /* caption hints use the forest's own tooltip (Anki's webview doesn't show title tooltips) */
 AF.captionTips = function (root) {
@@ -850,6 +850,42 @@ AF.captionTips = function (root) {
     else if (el.dataset.cmd && canBrowse()) el.addEventListener('click', () => send(el.dataset.cmd));
   });
 }
+})();
+
+/* ---- news.js ---- */
+/* Memory Forest — what's new (news.py): a dot on the cog for a new scenery, and a note on
+ * the forest for a new feature, shown until it is answered. Only in Anki: the phone has no
+ * cog, and nowhere to follow a note to. */
+(function () {
+'use strict';
+const AF = window.AnkiForest;
+const { esc, send } = AF.u;
+
+AF.news = function (root, data) {
+  if (!data.inAnki) return;
+  const cog = root.querySelector('.af-cog');
+  if (cog && data.newDot) {
+    cog.classList.add('af-cog-new');
+    cog.title = 'Change scenery and settings (new scenery)';
+    cog.setAttribute('aria-label', cog.title);
+    // opening the settings answers it (news.settings_opened); the forest redraws later
+    cog.addEventListener('click', () => cog.classList.remove('af-cog-new'));
+  }
+  const n = data.news;
+  if (!n) return;
+  const card = document.createElement('div');
+  card.className = 'af-news';
+  card.innerHTML = `<b>${esc(n.title)}</b>${esc(n.text)}<div class="af-news-acts">`
+    + (n.action ? `<button type="button" data-news="open">${esc(n.action)}</button>` : '')
+    + '<button type="button" data-news="seen">Got it</button></div>';
+  card.addEventListener('click', e => {
+    const b = e.target.closest('[data-news]');
+    if (!b) return;
+    card.remove();
+    send(`${data.channel}:news:${b.dataset.news}:${n.id}`);
+  });
+  root.querySelector('.af-scene').append(card);
+};
 })();
 
 /* ---- hover.js ---- */
@@ -1001,6 +1037,7 @@ AF.mount = function (root, data, opts) {
   root.style.maxWidth = data.maxWidth + 'px';
   AF.caption(root, data);
   AF.captionTips(root);
+  AF.news(root, data);  // what's new: the cog's dot, and a note on the forest
 
   const layout = AF.layout(data.trees);
   // with animations off the forest is one still moment: every redraw uses this time
@@ -1330,21 +1367,21 @@ part('clouds', {
   },
   back(g, env, t, st) {
     const { W } = env;
-    for (const c of st.clouds) { const x = ((c.x + t * AF.u.drift(c.v * 0.9, W + c.img.width)) % (W + c.img.width)) - c.img.width; g.drawImage(c.img, Math.round(x), c.y); }
+    for (const c of st.clouds) { const x = ((c.x + (AF.LOOP ? t * AF.u.drift(c.v * 0.9, W + c.img.width) : t * c.v * 0.9)) % (W + c.img.width)) - c.img.width; g.drawImage(c.img, Math.round(x), c.y); }
   },
 });
 
-/* the drops behind the land (drawn at the back) and in front of it */
 /* Where a raindrop is at time t: falling at d.v and drifting sideways at `drift` times that.
  * In loop mode (AF.LOOP) its sideways place follows how far it has fallen, so it keeps its
  * slant and starts again at the top of its own line; only the fall then needs rounding to the
  * loop, where a drift rounded on its own would race across the scene. */
 function dropAt(d, t, drift, W, H) {
   const fall = (d.y + t * AF.u.drift(d.v, H)) % H;
-  const x = AF.LOOP ? d.x - fall * drift : d.x - t * (d.v * drift);
+  const x = AF.LOOP ? d.x - fall * drift : d.x - t * d.v * drift;
   return { x: Math.round((x % W + W) % W), y: Math.round(fall) };
 }
 
+/* the drops behind the land (drawn at the back) and in front of it */
 part('rain', {
   init(st, { th, A, W, H, u }) {
     st.drift = th.lightning ? STORM_DRIFT : RAIN_DRIFT;
@@ -3170,7 +3207,7 @@ AF.env('misty_valley', {
     if (!env.mvBeams) env.mvBeams = [beams(env, 0), beams(env, 0.12)];
     // the light shifts from one set of beams to the other over a couple of minutes
     // moonbeams are only a ghost of the dawn's
-    const k = 0.5 + 0.5 * Math.sin(t * AF.u.cyc(TAU / BEAM_CYCLE)), m = env.theme.orb.kind === 'moon' ? 0.35 : 0.8;
+    const k = 0.5 + 0.5 * Math.sin(AF.LOOP ? t * AF.u.cyc(TAU / BEAM_CYCLE) : t * TAU / BEAM_CYCLE), m = env.theme.orb.kind === 'moon' ? 0.35 : 0.8;
     g.save();
     g.globalAlpha = (1 - k * 0.8) * m; g.drawImage(env.mvBeams[0], 0, 0);
     g.globalAlpha = (0.2 + k * 0.8) * m; g.drawImage(env.mvBeams[1], 0, 0);
@@ -3335,12 +3372,12 @@ function range(env, g) {
 function column(a, x, ts, u) {
   const xs = x / u;
   // the hem folds back on itself: two waves at different speeds
-  const y0 = Math.round(a.yb + Math.sin(xs * 0.018 + ts * AF.u.cyc(0.2 * a.sp * 3) / 0.2 + a.ph) * a.amp * u + Math.sin(xs * 0.047 - ts * AF.u.cyc(0.2 * a.sp * 5) / 0.2) * 3 * u);
+  const y0 = Math.round(a.yb + Math.sin(xs * 0.018 + (AF.LOOP ? ts * AF.u.cyc(0.2 * a.sp * 3) / 0.2 : ts * a.sp * 3) + a.ph) * a.amp * u + Math.sin(xs * 0.047 - (AF.LOOP ? ts * AF.u.cyc(0.2 * a.sp * 5) / 0.2 : ts * a.sp * 5)) * 3 * u);
   // thin rays, drifting sideways along the curtain, over brighter and dimmer stretches
-  const ray = 0.45 + 0.3 * Math.sin(xs * 0.7 + ts * AF.u.cyc(0.18) / 0.2 + Math.sin(xs * 0.05 + ts * AF.u.cyc(0.06) / 0.2) * 3) + 0.25 * Math.sin(xs * 1.9 - ts * AF.u.cyc(0.12) / 0.2);
-  const fade = 0.5 + 0.5 * Math.sin(xs * 0.011 + a.ph + ts * AF.u.cyc(0.03) / 0.2);
+  const ray = 0.45 + 0.3 * Math.sin(xs * 0.7 + (AF.LOOP ? ts * AF.u.cyc(0.18) / 0.2 : ts * 0.9) + Math.sin(xs * 0.05 + (AF.LOOP ? ts * AF.u.cyc(0.06) / 0.2 : ts * 0.3)) * 3) + 0.25 * Math.sin(xs * 1.9 - (AF.LOOP ? ts * AF.u.cyc(0.12) / 0.2 : ts * 0.6));
+  const fade = 0.5 + 0.5 * Math.sin(xs * 0.011 + a.ph + (AF.LOOP ? ts * AF.u.cyc(0.03) / 0.2 : ts * 0.15));
   const b = Math.max(0, Math.min(3, Math.round(ray * (0.65 + fade * 0.6) * 3)));
-  const hh = Math.round(a.hpx * (0.6 + 0.4 * Math.sin(xs * 0.021 + ts * AF.u.cyc(0.08) / 0.2 + a.ph)));
+  const hh = Math.round(a.hpx * (0.6 + 0.4 * Math.sin(xs * 0.021 + (AF.LOOP ? ts * AF.u.cyc(0.08) / 0.2 : ts * 0.4) + a.ph)));
   return { y0, hh, col: a.cols[b] };
 }
 
@@ -3808,10 +3845,13 @@ function riverLanterns(g, env, t) {
   }
   boats.sort((a, b) => a.p - b.p);
   for (const { p, lane, at } of boats) {
-    const y = Math.round(hor + p * (H - hor) + Math.sin(tt * AF.u.cyc(0.8) + at) * 0.5), lw = Math.max(1, Math.round((0.8 + p * 3) * u));
+    // (in loop mode the ninth lantern's place wraps back to the first, so its bob and
+    // flicker carry on across the seam; the reflection's broken rows don't move along)
+    const ph = AF.LOOP ? at % 9 : at;
+    const y = Math.round(hor + p * (H - hor) + Math.sin(tt * AF.u.cyc(0.8) + ph) * 0.5), lw = Math.max(1, Math.round((0.8 + p * 3) * u));
     const x = Math.round(W * land.center(p) + lane * W * land.halfWidth(p, W) - lw / 2);
     if (!seen(x + (lw >> 1), y + 1)) continue;  // behind a tree, or off the water
-    floatingLantern(g, x, y, lw, 0.8 + 0.2 * Math.sin(tt * AF.u.cyc(2.3) + at * 1.7), Math.round((2 + p * 8) * u), Math.floor(at), seen);
+    floatingLantern(g, x, y, lw, 0.8 + 0.2 * Math.sin(tt * AF.u.cyc(2.3) + ph * 1.7), Math.round((2 + p * 8) * u), AF.LOOP ? 0 : at, seen);
   }
 }
 
@@ -3891,7 +3931,7 @@ AF.env('bamboo', {
       // two lanes: small lanterns far out, bigger ones close to this bank
       const near = k % 2 === 0, lw = near ? Math.max(4, Math.round(3.6 * u)) : 3;
       const lane = near ? 0.55 + R() * 0.3 : 0.05 + R() * 0.25, y = Math.round(L.y0 + 2 + lane * Math.max(1, L.lh - 4));
-      const x = Math.round(((k / n) * (W + 12) + R() * 10 + t * AF.u.drift(v * (near ? 1 : 0.7), W + 12)) % (W + 12)) - 6;
+      const x = Math.round(((k / n) * (W + 12) + R() * 10 + (AF.LOOP ? t * AF.u.drift(v * (near ? 1 : 0.7), W + 12) : t * v * (near ? 1 : 0.7))) % (W + 12)) - 6;
       const flick = 0.8 + 0.2 * Math.sin(t * AF.u.cyc(2.3) + k * 1.7), yb = y + Math.round(Math.sin(t * AF.u.cyc(0.8) + k) * 0.5);
       floatingLantern(g, x, yb, lw, flick, Math.min((near ? 10 : 5) * u, L.y0 + L.lh - yb - 2), k, () => true);
     }
@@ -4047,7 +4087,7 @@ AF.landscape('river', {
     const S = env.river; if (!S || !S.vis || env.theme.frozen || env.still) return;
     const { W, H, u } = env, hor = env.hor, fa = 1 - S.dim * 0.4, R = rng(71);
     for (let k = 0; k < FLECKS; k++) {
-      const q = (R() + t * AF.u.drift(0.03 * (0.8 + R() * 0.4), 1)) % 1, off = (R() - 0.5) * 1.3, p = Math.pow(q, 1.3), y = Math.round(hor + p * (H - hor));
+      const q = (R() + (AF.LOOP ? t * AF.u.drift(0.03 * (0.8 + R() * 0.4), 1) : t * 0.03 * (0.8 + R() * 0.4))) % 1, off = (R() - 0.5) * 1.3, p = Math.pow(q, 1.3), y = Math.round(hor + p * (H - hor));
       const x = Math.round(W * center(p) + off * W * halfWidth(p, W)), len = 1 + Math.round(p * 5 * u);
       if (y >= H) continue;
       // pixel by pixel: a fleck running under a tree's edge stops at it

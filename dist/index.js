@@ -44892,7 +44892,7 @@ var require_websocket = __commonJS({
     var http2 = __require("http");
     var net = __require("net");
     var tls = __require("tls");
-    var { randomBytes, createHash: createHash3 } = __require("crypto");
+    var { randomBytes, createHash: createHash2 } = __require("crypto");
     var { Duplex, Readable: Readable2 } = __require("stream");
     var { URL: URL3 } = __require("url");
     var PerMessageDeflate2 = require_permessage_deflate();
@@ -45573,7 +45573,7 @@ var require_websocket = __commonJS({
           abortHandshake(websocket, socket, "Invalid Upgrade header");
           return;
         }
-        const digest = createHash3("sha1").update(key + GUID).digest("base64");
+        const digest = createHash2("sha1").update(key + GUID).digest("base64");
         if (res.headers["sec-websocket-accept"] !== digest) {
           abortHandshake(websocket, socket, "Invalid Sec-WebSocket-Accept header");
           return;
@@ -45942,7 +45942,7 @@ var require_websocket_server = __commonJS({
     var EventEmitter4 = __require("events");
     var http2 = __require("http");
     var { Duplex } = __require("stream");
-    var { createHash: createHash3 } = __require("crypto");
+    var { createHash: createHash2 } = __require("crypto");
     var extension2 = require_extension();
     var PerMessageDeflate2 = require_permessage_deflate();
     var subprotocol2 = require_subprotocol();
@@ -46249,7 +46249,7 @@ var require_websocket_server = __commonJS({
           );
         }
         if (this._state > RUNNING) return abortHandshake(socket, 503);
-        const digest = createHash3("sha1").update(key + GUID).digest("base64");
+        const digest = createHash2("sha1").update(key + GUID).digest("base64");
         const headers = [
           "HTTP/1.1 101 Switching Protocols",
           "Upgrade: websocket",
@@ -46452,7 +46452,7 @@ var init_NodeWebSocketTransport = __esm({
 });
 
 // node_modules/@puppeteer/browsers/lib/httpUtil.js
-import { createHash as createHash2 } from "node:crypto";
+import { createHash } from "node:crypto";
 import { createWriteStream, unlinkSync } from "node:fs";
 import * as http from "node:http";
 import * as https from "node:https";
@@ -46585,7 +46585,7 @@ var HashVerifier;
 var init_httpUtil = __esm({
   "node_modules/@puppeteer/browsers/lib/httpUtil.js"() {
     HashVerifier = class {
-      #hash = createHash2("sha256");
+      #hash = createHash("sha256");
       update(chunk) {
         this.#hash.update(chunk);
       }
@@ -57268,8 +57268,8 @@ var require_common = __commonJS({
         return [].concat.apply([], chunks);
       }
     };
-    exports.setTyped = function(on) {
-      if (on) {
+    exports.setTyped = function(on2) {
+      if (on2) {
         exports.Buf8 = Uint8Array;
         exports.Buf16 = Uint16Array;
         exports.Buf32 = Int32Array;
@@ -63249,9 +63249,8 @@ import path15 from "node:path";
 
 // src/calendar.js
 var API = "https://api.github.com/graphql";
-var ACCOUNT = `query($login: String!) { user(login: $login) { createdAt } }`;
 var DAYS = `contributionCalendar { totalContributions weeks { contributionDays { date contributionCount contributionLevel } } }`;
-var ROLLING = `query($login: String!) { user(login: $login) { contributionsCollection { ${DAYS} } } }`;
+var ROLLING = `query($login: String!) { user(login: $login) { createdAt contributionsCollection { ${DAYS} } } }`;
 var SPAN = `query($login: String!, $from: DateTime!, $to: DateTime!) {
   user(login: $login) { contributionsCollection(from: $from, to: $to) { ${DAYS} } } }`;
 async function query(token, q2, variables) {
@@ -63270,12 +63269,16 @@ async function span(login, token, year, now) {
   const from2 = new Date(Date.UTC(year, 0, 1));
   const to = year === now.getUTCFullYear() ? now : new Date(Date.UTC(year, 11, 31, 23, 59, 59));
   const data = await query(token, SPAN, { login, from: from2.toISOString(), to: to.toISOString() });
-  if (!data.user) throw new Error(`there is no GitHub user called ${login}`);
   return daysOf(data.user.contributionsCollection.contributionCalendar);
 }
 async function fetchCalendar(login, token, period = "last-year", now = /* @__PURE__ */ new Date()) {
-  const rolling = await query(token, ROLLING, { login });
-  if (!rolling.user) throw new Error(`there is no GitHub user called ${login}`);
+  const rolling = await query(token, ROLLING, { login }).catch((e) => {
+    if (!/resolve to a User/i.test(e.message)) throw e;
+    return { user: null };
+  });
+  if (!rolling.user) {
+    throw new Error(`there is no GitHub user called ${login}. If this repository belongs to an organization, set the user input to your own username`);
+  }
   const recent = daysOf(rolling.user.contributionsCollection.contributionCalendar);
   const today = recent[recent.length - 1].date;
   if (period === "last-year") return { days: recent, today };
@@ -63284,16 +63287,44 @@ async function fetchCalendar(login, token, period = "last-year", now = /* @__PUR
     return { days: await span(login, token, year, now), today };
   }
   if (period !== "all") throw new Error(`period must be last-year, this-year, all or a year like 2025, not "${period}"`);
-  const account = await query(token, ACCOUNT, { login });
   const days = /* @__PURE__ */ new Map();
-  for (let year = new Date(account.user.createdAt).getUTCFullYear(); year <= now.getUTCFullYear(); year++) {
+  for (let year = new Date(rolling.user.createdAt).getUTCFullYear(); year <= now.getUTCFullYear(); year++) {
     for (const d of await span(login, token, year, now)) days.set(d.date, d);
   }
   return { days: [...days.values()].sort((a2, b2) => a2.date.localeCompare(b2.date)), today };
 }
 
+// src/sha1.js
+function sha1Head(text) {
+  const bytes = new TextEncoder().encode(text);
+  const words = new Uint32Array(((bytes.length + 8 >> 6) + 1) * 16);
+  bytes.forEach((b3, i) => {
+    words[i >> 2] |= b3 << 24 - i % 4 * 8;
+  });
+  words[bytes.length >> 2] |= 128 << 24 - bytes.length % 4 * 8;
+  words[words.length - 1] = bytes.length * 8;
+  let [a2, b2, c, d, e] = [1732584193, 4023233417, 2562383102, 271733878, 3285377520];
+  const w2 = new Uint32Array(80);
+  const rotl = (x2, n) => x2 << n | x2 >>> 32 - n;
+  for (let i = 0; i < words.length; i += 16) {
+    for (let t = 0; t < 80; t++) w2[t] = t < 16 ? words[i + t] : rotl(w2[t - 3] ^ w2[t - 8] ^ w2[t - 14] ^ w2[t - 16], 1);
+    let [A, B2, C2, D2, E] = [a2, b2, c, d, e];
+    for (let t = 0; t < 80; t++) {
+      const f = t < 20 ? B2 & C2 | ~B2 & D2 : t < 40 ? B2 ^ C2 ^ D2 : t < 60 ? B2 & C2 | B2 & D2 | C2 & D2 : B2 ^ C2 ^ D2;
+      const k = t < 20 ? 1518500249 : t < 40 ? 1859775393 : t < 60 ? 2400959708 : 3395469782;
+      const tmp = rotl(A, 5) + f + E + k + w2[t] >>> 0;
+      [E, D2, C2, B2, A] = [D2, C2, rotl(B2, 30) >>> 0, A, tmp];
+    }
+    a2 = a2 + A >>> 0;
+    b2 = b2 + B2 >>> 0;
+    c = c + C2 >>> 0;
+    d = d + D2 >>> 0;
+    e = e + E >>> 0;
+  }
+  return a2;
+}
+
 // src/forest.js
-import { createHash } from "node:crypto";
 var SEEDLING = 0;
 var SAPLING = 1;
 var YOUNG = 2;
@@ -63321,7 +63352,7 @@ var DAY_MS = 864e5;
 var dayNumber = (iso) => Math.round(Date.parse(iso + "T00:00:00Z") / DAY_MS);
 var isoOf = (n) => new Date(n * DAY_MS).toISOString().slice(0, 10);
 function seedOf(text) {
-  return createHash("sha1").update(text).digest().readUInt32BE(0) & 2147483647;
+  return sha1Head(text) & 2147483647;
 }
 function stageOf(ago) {
   if (ago <= 0) return SEEDLING;
@@ -63332,10 +63363,8 @@ function stageOf(ago) {
   return ANCIENT;
 }
 function inPeriod(days, period, today) {
-  if (period === "all" || period === "last-year") return days;
-  if (!period || period === "this-year") return days.filter((d) => d.date.startsWith(today.slice(0, 4) + "-"));
-  if (/^\d{4}$/.test(period)) return days.filter((d) => d.date.startsWith(period + "-"));
-  throw new Error(`period must be last-year, this-year, all or a year like 2025, not "${period}"`);
+  const year = period === "this-year" ? today.slice(0, 4) : /^\d{4}$/.test(period) ? period : null;
+  return year ? days.filter((d) => d.date.startsWith(year + "-")) : days;
 }
 function buildForest(days, { login, today, cap = MAX_INDIVIDUAL_TREES }) {
   const todayN = dayNumber(today);
@@ -63363,7 +63392,7 @@ function buildForest(days, { login, today, cap = MAX_INDIVIDUAL_TREES }) {
   markPonds(trees, active.map((d) => dayNumber(d.date)));
   const stats = statsOf(trees, todayN);
   const visitors = VISITORS.filter(([, , , test]) => test(stats)).map(([key, label, why]) => ({ key, label, why, new: false }));
-  return mergeOld({ trees, stats, visitors, forest_seed: seedOf(login.toLowerCase()) }, cap);
+  return mergeOld({ trees, stats, visitors, forest_seed: seedOf(login.toLowerCase()), day_number: todayN }, cap);
 }
 function markPonds(trees, activeDays) {
   const ponds = [];
@@ -64894,29 +64923,80 @@ var {
 } = puppeteer;
 var puppeteer_core_default = puppeteer;
 
-// src/render.js
-var ROOT = path14.join(path14.dirname(fileURLToPath2(import.meta.url)), "..");
+// src/presets.json
+var presets_default = {
+  golden_lake: {
+    environment: "natural",
+    landscape: "lake",
+    landmark: "none",
+    weather: "clear",
+    time: "golden_hour",
+    loop: 4,
+    fps: 12
+  },
+  misty_valley: {
+    environment: "misty_valley",
+    landscape: "mountains",
+    landmark: "peak",
+    weather: "fog",
+    time: "dawn",
+    loop: 4,
+    fps: 12
+  },
+  aurora: {
+    environment: "aurora",
+    landscape: "lake",
+    landmark: "none",
+    weather: "clear",
+    time: "night",
+    loop: 4,
+    fps: 12
+  },
+  lanterns: {
+    environment: "lanterns",
+    landscape: "lake",
+    landmark: "moon_bridge",
+    weather: "clear",
+    time: "night",
+    loop: 60,
+    fps: 8
+  },
+  bamboo: {
+    environment: "bamboo",
+    landscape: "river",
+    landmark: "none",
+    weather: "rain",
+    time: "day",
+    loop: 10,
+    fps: 12
+  },
+  synthwave: {
+    environment: "synthwave",
+    landscape: "meadow",
+    landmark: "none",
+    weather: "clear",
+    time: "dusk",
+    loop: 4,
+    fps: 12
+  }
+};
+
+// src/scenery.js
 var PANEL_PX = 776;
-var SCALE = 2;
-var START_MS = 2e4;
-var BIRD_LOOP = 60;
-var CHROMES = [
-  "/usr/bin/google-chrome",
-  "/usr/bin/google-chrome-stable",
-  "/usr/bin/chromium",
-  "/usr/bin/chromium-browser",
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-];
-var SCENERIES = JSON.parse(readFileSync5(path14.join(ROOT, "src", "presets.json"), "utf8"));
-var engine = () => readFileSync5(path14.join(ROOT, "engine", "forest-engine.txt"), "utf8");
-function findChrome(given) {
-  const found = [given, process.env.CHROME, ...CHROMES].find((p) => p && existsSync3(p));
-  if (!found) throw new Error("could not find Chrome; pass its path as the chrome input");
-  return found;
+var CHOICES = ["daily", "shuffle"];
+var tidy = (name) => name && name.trim().toLowerCase().replace(/-/g, "_");
+function checkScenery(key, also = []) {
+  if (!presets_default[key] && !also.includes(key)) {
+    throw new Error(`there is no scenery called "${key}"; choose from ${[...Object.keys(presets_default), ...also].join(", ")}`);
+  }
+  return key;
 }
-function moonPhase(date) {
-  const synodic = 29.530588853, knownNew = Date.UTC(2e3, 0, 6, 18, 14);
-  return ((Date.parse(date + "T12:00:00Z") - knownNew) / 864e5 % synodic + synodic) % synodic / synodic;
+function sceneryList(text) {
+  if (!text || text.trim() === "all") return Object.keys(presets_default);
+  return text.split(",").map(tidy).filter(Boolean).map((k) => checkScenery(k));
+}
+function dailyScenery(list, login, today, role = "light") {
+  return list[seedOf(`${login.toLowerCase()}:daily:${role}:${today}`) % list.length];
 }
 function timeAt(hour) {
   if (hour >= 5 && hour < 7) return "dawn";
@@ -64925,9 +65005,12 @@ function timeAt(hour) {
   if (hour >= 18 && hour < 20) return "dusk";
   return "night";
 }
+function moonPhase(date) {
+  const synodic = 29.530588853, knownNew = Date.UTC(2e3, 0, 6, 18, 14);
+  return ((Date.parse(date + "T12:00:00Z") - knownNew) / 864e5 % synodic + synodic) % synodic / synodic;
+}
 function moodOf(scenery, date, time) {
-  const look = SCENERIES[scenery];
-  if (!look) throw new Error(`no scenery called ${scenery}; there are: ${Object.keys(SCENERIES).join(", ")}`);
+  const look = presets_default[scenery];
   return {
     time: time || look.time,
     clock: false,
@@ -64941,13 +65024,14 @@ function moodOf(scenery, date, time) {
     source: "manual"
   };
 }
-function page(forest, mood, loop) {
-  const data = {
+function sceneData(forest, mood, loop = null) {
+  return {
     trees: forest.trees,
     stats: forest.stats,
     visitors: forest.visitors,
     merged: forest.merged || null,
     forestSeed: forest.forest_seed,
+    dayNumber: forest.day_number,
     anniversaries: [],
     events: [],
     journal: "",
@@ -64959,6 +65043,27 @@ function page(forest, mood, loop) {
     // the engine's loop mode: every motion repeats exactly in this many seconds
     loop
   };
+}
+
+// src/render.js
+var ROOT = path14.join(path14.dirname(fileURLToPath2(import.meta.url)), "..");
+var START_MS = 2e4;
+var BIRD_LOOP = 60;
+var CHROMES = [
+  "/usr/bin/google-chrome",
+  "/usr/bin/google-chrome-stable",
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser",
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+];
+var engine = () => readFileSync5(path14.join(ROOT, "engine", "forest-engine.txt"), "utf8");
+function findChrome(given) {
+  const found = [given, process.env.CHROME, ...CHROMES].find((p) => p && existsSync3(p));
+  if (!found) throw new Error("could not find Chrome. Commit Forest runs on runs-on: ubuntu-latest, which has it; on another runner, install Chrome and pass its path as the chrome input");
+  return found;
+}
+function page(forest, mood, loop) {
+  const data = sceneData(forest, mood, loop);
   return `<!doctype html><meta charset=utf-8><style>body{margin:0}.af-panel{width:${PANEL_PX}px;margin:0;padding:0}</style>
 <script>let NOW_MS = 0, TID = 0; const Q = [], T = [];
 window.requestAnimationFrame = cb => { Q.push(cb); return Q.length; };
@@ -64978,7 +65083,7 @@ NOW_MS = ${START_MS};
 try { AnkiForest.mount(document.getElementById('p'), window.D, { now: true }); }
 catch (e) { window.ERRS.push('mount: ' + (e.stack || e)); }</script>`;
 }
-async function renderFrames(forest, mood, { chrome: chrome2, seconds = 4, fps = 12, loop = seconds } = {}) {
+async function renderFrames(forest, mood, { chrome: chrome2, seconds = 4, fps = 12, loop = seconds, whole = false } = {}) {
   const browser = await puppeteer_core_default.launch({
     executablePath: findChrome(chrome2),
     headless: true,
@@ -64990,7 +65095,7 @@ async function renderFrames(forest, mood, { chrome: chrome2, seconds = 4, fps = 
     await tab.setContent(page(forest, mood, loop), { waitUntil: "load" });
     const birds = await tab.evaluate(() => document.getElementById("p").afEnv?.theme?.birds || 0);
     if (birds && loop < BIRD_LOOP) {
-      if (seconds === loop) seconds = BIRD_LOOP;
+      if (whole) seconds = BIRD_LOOP;
       loop = BIRD_LOOP;
       await tab.evaluate((l) => {
         window.AnkiForest.LOOP = l;
@@ -65053,7 +65158,11 @@ var GLYPHS = {
   ",": [0, 0, 0, 2, 4],
   ".": [0, 0, 0, 0, 2],
   "\xB7": [0, 0, 2, 0, 0],
-  " ": [0, 0, 0, 0, 0]
+  " ": [0, 0, 0, 0, 0],
+  "'": [2, 2, 0, 0, 0],
+  "=": [0, 7, 0, 7, 0],
+  "-": [0, 0, 7, 0, 0],
+  "/": [1, 1, 2, 4, 4]
 };
 var W2 = 3;
 var H = 5;
@@ -65061,48 +65170,68 @@ var GAP = 1;
 var MARGIN = 4;
 var INK = [246, 238, 216];
 var EDGE = [24, 28, 24];
-function statsLine(stats, period, year) {
+var PLATE_SHOW = 0.35;
+var PLATE_PAD = 2;
+function labelLine(login) {
+  return `${login} ON GITHUB \xB7 ONE TREE PER DAY WITH A CONTRIBUTION`;
+}
+function periodLabel(period, year) {
+  return period === "this-year" ? year : /^\d{4}$/.test(period) ? period : null;
+}
+function statsLine(stats, period, year, since) {
   const n = (x2) => x2.toLocaleString("en-US");
   const parts = [`${n(stats.trees)} ${stats.trees === 1 ? "TREE" : "TREES"}`, `${n(stats.cards)} ${stats.cards === 1 ? "CONTRIBUTION" : "CONTRIBUTIONS"}`];
-  if (period === "this-year") parts.unshift(String(year));
-  else if (/^\d{4}$/.test(period)) parts.unshift(period);
+  const label = periodLabel(period, year);
+  if (label) parts.unshift(label);
   else if (period === "last-year") parts[parts.length - 1] += " IN THE LAST YEAR";
+  else if (period === "all" && since) parts[parts.length - 1] += ` SINCE ${since}`;
   return parts.join(" \xB7 ");
 }
-function stamp(rgba, w2, h, text) {
+function textPixels(text, w2, h, { top: top2 = false } = {}) {
   const glyphs = [...text.toUpperCase()].map((c) => GLYPHS[c] || GLYPHS[" "]);
-  const x0 = MARGIN, y0 = h - MARGIN - H;
+  const x0 = MARGIN, y0 = top2 ? MARGIN : h - MARGIN - H;
   const lit = /* @__PURE__ */ new Set();
   glyphs.forEach((g, i) => g.forEach((row, y) => {
     for (let x2 = 0; x2 < W2; x2++) if (row & 1 << W2 - 1 - x2) lit.add(`${x0 + i * (W2 + GAP) + x2},${y0 + y}`);
   }));
-  const put = (x2, y, c) => {
-    if (x2 < 0 || y < 0 || x2 >= w2 || y >= h) return;
+  const ink = [...lit].map((p) => p.split(",").map(Number)), edge = /* @__PURE__ */ new Set();
+  for (const [x2, y] of ink) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (!lit.has(`${x2 + dx},${y + dy}`)) edge.add(`${x2 + dx},${y + dy}`);
+  const x1 = x0 + glyphs.length * (W2 + GAP) - GAP;
+  const band = { x: x0 - PLATE_PAD, y: y0 - PLATE_PAD, w: x1 - x0 + 2 * PLATE_PAD, h: H + 2 * PLATE_PAD };
+  return { band, ink, edge: [...edge].map((p) => p.split(",").map(Number)) };
+}
+function stamp(rgba, w2, h, text, { top: top2 = false } = {}) {
+  const { band, ink, edge } = textPixels(text, w2, h, { top: top2 });
+  const inside = (x2, y) => x2 >= 0 && y >= 0 && x2 < w2 && y < h;
+  for (let y = band.y; y < band.y + band.h; y++) {
+    for (let x2 = band.x; x2 < band.x + band.w; x2++) {
+      if (!inside(x2, y)) continue;
+      const o = (y * w2 + x2) * 4;
+      for (let c = 0; c < 3; c++) rgba[o + c] = Math.round(rgba[o + c] * PLATE_SHOW + EDGE[c] * (1 - PLATE_SHOW));
+    }
+  }
+  const put = ([x2, y], c) => {
+    if (!inside(x2, y)) return;
     const o = (y * w2 + x2) * 4;
     rgba[o] = c[0];
     rgba[o + 1] = c[1];
     rgba[o + 2] = c[2];
     rgba[o + 3] = 255;
   };
-  for (const p of lit) {
-    const [x2, y] = p.split(",").map(Number);
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (!lit.has(`${x2 + dx},${y + dy}`)) put(x2 + dx, y + dy, EDGE);
-  }
-  for (const p of lit) {
-    const [x2, y] = p.split(",").map(Number);
-    put(x2, y, INK);
-  }
+  edge.forEach((p) => put(p, EDGE));
+  ink.forEach((p) => put(p, INK));
 }
 
 // src/encode.js
 var import_upng_js = __toESM(require_UPNG(), 1);
 var import_gifenc = __toESM(require_gifenc(), 1);
 var { GIFEncoder, quantize, applyPalette } = import_gifenc.default;
+var SCALE = 2;
 function decode(dataUrl) {
   const png2 = import_upng_js.default.decode(Buffer.from(dataUrl.split(",", 2)[1], "base64"));
   return { w: png2.width, h: png2.height, rgba: new Uint8Array(import_upng_js.default.toRGBA8(png2)[0]) };
 }
-function upscale({ w: w2, h, rgba }, k) {
+function upscale({ w: w2, h, rgba }, k = SCALE) {
   const out = new Uint8Array(w2 * k * h * k * 4), row = w2 * k * 4;
   for (let y = 0; y < h; y++) {
     for (let x2 = 0; x2 < w2; x2++) {
@@ -65112,10 +65241,10 @@ function upscale({ w: w2, h, rgba }, k) {
   }
   return { w: w2 * k, h: h * k, rgba: out };
 }
-function prepare(shots, text) {
+function prepare(shots, lines = []) {
   return shots.map((s) => {
     const f = decode(s);
-    if (text) stamp(f.rgba, f.w, f.h, text);
+    for (const { text, top: top2 } of lines) stamp(f.rgba, f.w, f.h, text, { top: top2 });
     return f;
   });
 }
@@ -65135,20 +65264,19 @@ function dissolve(a2, b2, steps) {
   }
   return out;
 }
-function apng(frames, fps, k) {
-  const f = frames.map((x2) => upscale(x2, k));
+function apng(frames, fps) {
+  const f = frames.map((x2) => upscale(x2));
   return Buffer.from(import_upng_js.default.encode(f.map((x2) => x2.rgba.buffer), f[0].w, f[0].h, 0, f.map(() => Math.round(1e3 / fps))));
 }
-function png(frames, k) {
-  const f = upscale(frames[0], k);
+function png(frames) {
+  const f = upscale(frames[0]);
   return Buffer.from(import_upng_js.default.encode([f.rgba.buffer], f.w, f.h, 0));
 }
-function gif(frames, fps, k) {
-  const f = frames.map((x2) => upscale(x2, k));
-  const step = Math.max(1, Math.floor(f.length / 8)), sample = [];
-  for (let i = 0; i < f.length; i += step) sample.push(f[i].rgba);
-  const all = new Uint8Array(sample.reduce((a2, s) => a2 + s.length, 0));
-  sample.reduce((o, s) => (all.set(s, o), o + s.length), 0);
+function gif(frames, fps) {
+  const f = frames.map((x2) => upscale(x2));
+  const step = Math.max(1, Math.floor(f.length / 8)), sample = f.filter((_2, i) => i % step === 0);
+  const all = new Uint8Array(sample.length * f[0].rgba.length);
+  sample.forEach((x2, i) => all.set(x2.rgba, i * x2.rgba.length));
   const palette = quantize(all, 256);
   const enc = GIFEncoder();
   for (const x2 of f) enc.writeFrame(applyPalette(x2.rgba, palette), x2.w, x2.h, { palette, delay: Math.round(1e3 / fps), repeat: 0 });
@@ -65157,28 +65285,25 @@ function gif(frames, fps, k) {
 }
 
 // src/grow.js
-var FORMATS = { apng: "png", png: "png", gif: "gif" };
+var FORMATS = {
+  apng: { ext: "png", write: (frames, fps) => apng(frames, fps) },
+  gif: { ext: "gif", write: (frames, fps) => gif(frames, fps) },
+  png: { ext: "png", write: (frames) => png(frames) }
+};
 var SHUFFLE_SECONDS = 5;
 var SHUFFLE_FPS = 12;
 var DISSOLVE_FRAMES = 6;
 function altText(stats, period, year) {
-  const span2 = period === "all" ? "" : period === "last-year" ? " in the last year" : ` in ${period === "this-year" ? year : period}`;
+  const span2 = period === "all" ? "" : period === "last-year" ? " in the last year" : ` in ${periodLabel(period, year)}`;
   const trees = `${stats.trees.toLocaleString("en-US")} ${stats.trees === 1 ? "tree" : "trees"}`;
   return `My contribution forest: ${trees}, one for each day I contributed${span2}`;
 }
 function hourIn(timezone, now = /* @__PURE__ */ new Date()) {
-  const h = new Intl.DateTimeFormat("en-US", { timeZone: timezone, hour: "numeric", hourCycle: "h23" }).format(now);
-  return Number(h);
-}
-function sceneryList(text) {
-  if (!text || text.trim() === "all") return Object.keys(SCENERIES);
-  const keys = text.split(",").map((s) => s.trim()).filter(Boolean);
-  const unknown = keys.filter((k) => !SCENERIES[k]);
-  if (unknown.length) throw new Error(`no scenery called ${unknown.join(", ")}; there are: ${Object.keys(SCENERIES).join(", ")}`);
-  return keys;
-}
-function dailyScenery(list, login, today) {
-  return list[seedOf(`${login.toLowerCase()}:daily:${today}`) % list.length];
+  try {
+    return Number(new Intl.DateTimeFormat("en-US", { timeZone: timezone, hour: "numeric", hourCycle: "h23" }).format(now));
+  } catch {
+    throw new Error(`"${timezone}" is not a time zone; use a name such as Europe/Berlin or America/New_York`);
+  }
 }
 async function grow({
   login,
@@ -65190,60 +65315,65 @@ async function grow({
   period = "last-year",
   format: format3 = "apng",
   stats = true,
+  label = true,
   timezone,
   chrome: chrome2,
-  outDir,
-  days
+  outDir
 }) {
-  if (!FORMATS[format3]) throw new Error(`format must be apng, gif or png, not "${format3}"`);
-  const fetched = days ? { days, today: days[days.length - 1].date } : await fetchCalendar(login, token, period);
-  const today = fetched.today;
-  const forest = buildForest(inPeriod(fetched.days, period, today), { login, today });
-  const year = today.slice(0, 4);
-  const text = stats ? statsLine(forest.stats, period, year) : null;
-  const pool = sceneryList(sceneries);
+  scenery = tidy(scenery);
+  darkScenery = tidy(darkScenery);
+  const out = FORMATS[format3];
+  if (!out) throw new Error(`format must be apng, gif or png, not "${format3}"`);
+  for (const choice of [scenery, darkScenery]) if (choice) checkScenery(choice, CHOICES);
+  const pool = sceneryList(sceneries), shown = gallery ? sceneryList(gallery) : [];
   const lightTime = timezone ? timeAt(hourIn(timezone)) : null;
+  const { days, today } = await fetchCalendar(login, token, period);
+  const forest = buildForest(inPeriod(days, period, today), { login, today });
+  const year = today.slice(0, 4);
+  const since = forest.stats.oldest_date && forest.stats.oldest_date.slice(0, 4);
+  const lines = [
+    ...label ? [{ text: labelLine(login), top: true }] : [],
+    ...stats ? [{ text: statsLine(forest.stats, period, year, since), top: false }] : []
+  ];
   const still = format3 === "png";
+  const frames = async (key, time, { seconds, loop, fps, whole = false }) => {
+    const { shots } = await renderFrames(forest, moodOf(key, today, time), { chrome: chrome2, seconds: still ? 1 / fps : seconds, fps, loop, whole: whole && !still });
+    return prepare(shots, lines);
+  };
   const scene = async (key, time) => {
-    const { loop, fps } = SCENERIES[key];
-    const shots = (await renderFrames(forest, moodOf(key, today, time), { chrome: chrome2, seconds: still ? 1 / fps : loop, fps, loop })).shots;
-    return { frames: prepare(shots, text), fps };
+    const { loop, fps } = presets_default[key];
+    return { frames: await frames(key, time, { seconds: loop, loop, fps, whole: true }), fps };
   };
   const shuffle = async (keys, time) => {
+    if (still) return scene(keys[0], time);
     const parts = [];
     for (const key of keys) {
-      const { loop } = SCENERIES[key], seconds = still ? 1 / SHUFFLE_FPS : Math.min(loop, SHUFFLE_SECONDS);
-      const shots = (await renderFrames(forest, moodOf(key, today, time), { chrome: chrome2, seconds, fps: SHUFFLE_FPS, loop })).shots;
-      parts.push(prepare(shots, text));
+      const { loop } = presets_default[key];
+      parts.push(await frames(key, time, { seconds: Math.min(loop, SHUFFLE_SECONDS), loop, fps: SHUFFLE_FPS }));
     }
-    if (still) return { frames: parts[0], fps: SHUFFLE_FPS };
-    const frames = parts.flatMap((p, i) => [...p, ...dissolve(p[p.length - 1], parts[(i + 1) % parts.length][0], DISSOLVE_FRAMES)]);
-    return { frames, fps: SHUFFLE_FPS };
+    const all = parts.flatMap((p, i) => [...p, ...dissolve(p[p.length - 1], parts[(i + 1) % parts.length][0], DISSOLVE_FRAMES)]);
+    return { frames: all, fps: SHUFFLE_FPS };
   };
-  const draw = (choice, time) => {
-    if (choice === "shuffle") return shuffle(pool, time);
-    const key = choice === "daily" ? dailyScenery(pool, login, today) : choice;
-    if (!SCENERIES[key]) throw new Error(`no scenery called ${key}; there are: ${Object.keys(SCENERIES).join(", ")}, daily, shuffle`);
-    return scene(key, time);
-  };
-  const wanted = [["forest", scenery, lightTime], ["forest-dark", darkScenery, null]];
-  if (gallery) for (const key of sceneryList(gallery)) wanted.push([`forest-${key}`, key, null]);
+  const draw = (choice, time, role) => choice === "shuffle" ? shuffle(pool, time) : scene(choice === "daily" ? dailyScenery(pool, login, today, role) : choice, time);
+  const wanted = [
+    ["forest", scenery, lightTime, "light"],
+    ["forest-dark", darkScenery, null, "dark"],
+    ...shown.map((k) => [`forest-${k}`, k, null, "light"])
+  ];
   mkdirSync(outDir, { recursive: true });
-  const files = [];
-  for (const [name, choice, time] of wanted) {
+  const files = {};
+  for (const [name, choice, time, role] of wanted) {
     if (!choice) continue;
-    const { frames, fps } = await draw(choice, time);
-    const bytes = format3 === "gif" ? gif(frames, fps, SCALE) : still ? png(frames, SCALE) : apng(frames, fps, SCALE);
-    const file = path15.join(outDir, `${name}.${FORMATS[format3]}`);
-    writeFileSync(file, bytes);
-    files.push(file);
+    const { frames: f, fps } = await draw(choice, time, role);
+    files[name] = path15.join(outDir, `${name}.${out.ext}`);
+    writeFileSync(files[name], out.write(f, fps));
   }
   return { forest, files, alt: altText(forest.stats, period, year), today };
 }
 
 // src/publish.js
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdtempSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { copyFileSync, mkdtempSync, readFileSync as readFileSync6, writeFileSync as writeFileSync2 } from "node:fs";
 import os10 from "node:os";
 import path16 from "node:path";
 var BRANCH_README = `# Commit Forest
@@ -65251,7 +65381,18 @@ var BRANCH_README = `# Commit Forest
 The images on this branch are redrawn by the Commit Forest workflow and replaced on every
 run. Point your README at them; don't edit them here.
 `;
+function defaultBranch() {
+  try {
+    return JSON.parse(readFileSync6(process.env.GITHUB_EVENT_PATH, "utf8")).repository.default_branch || null;
+  } catch {
+    return null;
+  }
+}
 function publish(files, { repo, branch, token }) {
+  const guarded2 = [defaultBranch(), process.env.GITHUB_REF_NAME, "main", "master"].filter(Boolean);
+  if (guarded2.includes(branch)) {
+    throw new Error(`the branch input is "${branch}", which holds your repository's own files; the images go to a branch of their own, such as output`);
+  }
   const dir = mkdtempSync(path16.join(os10.tmpdir(), "commit-forest-"));
   const git = (...args) => execFileSync("git", args, { cwd: dir, stdio: "pipe" });
   git("init", "-q", "-b", branch);
@@ -65268,18 +65409,32 @@ function publish(files, { repo, branch, token }) {
     "-m",
     "Grow the forest"
   );
-  git("push", "-q", "--force", `https://x-access-token:${token}@github.com/${repo}.git`, `HEAD:refs/heads/${branch}`);
+  const auth = Buffer.from(`x-access-token:${token}`).toString("base64");
+  try {
+    execFileSync("git", ["push", "-q", "--force", `https://github.com/${repo}.git`, `HEAD:refs/heads/${branch}`], {
+      cwd: dir,
+      stdio: "pipe",
+      env: { ...process.env, GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "http.extraheader", GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${auth}` }
+    });
+  } catch (e) {
+    const said = String(e.stderr || e.message);
+    if (/403|denied|not allowed/i.test(said)) {
+      throw new Error('GitHub refused to let the workflow push the images. Add "permissions: contents: write" to the workflow; if it is there, set Settings > Actions > General > Workflow permissions to "Read and write"');
+    }
+    throw new Error(`pushing the images failed: ${said.trim()}`);
+  }
 }
 
 // src/index.js
-var input2 = (name) => (process.env[`INPUT_${name.toUpperCase()}`] || "").trim();
+var input2 = (name) => (process.env[`INPUT_${name.toUpperCase()}`] || "").trim() || void 0;
+var on = (value) => !/^(false|no|off|0)$/i.test(value || "");
 function summary(markdown) {
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown + "\n");
   console.log(markdown);
 }
 function snippet({ repo, branch, files, alt }) {
   const url = (f) => `https://raw.githubusercontent.com/${repo}/${branch}/${path17.basename(f)}`;
-  const [light, dark] = files;
+  const { forest: light, "forest-dark": dark } = files;
   const img = `<img alt="${alt}" src="${url(light)}">`;
   const inner = dark ? `<picture>
     <source media="(prefers-color-scheme: dark)" srcset="${url(dark)}">
@@ -65291,24 +65446,25 @@ function snippet({ repo, branch, files, alt }) {
 }
 async function main() {
   const repo = process.env.GITHUB_REPOSITORY || "you/you", token = input2("token"), branch = input2("branch") || "output";
-  const period = input2("period") || "last-year";
   try {
     const { forest, files, alt } = await grow({
       login: input2("user") || repo.split("/")[0],
       token,
-      scenery: input2("scenery") || "golden_lake",
+      scenery: input2("scenery"),
       darkScenery: input2("dark_scenery"),
-      sceneries: input2("sceneries") || "all",
+      sceneries: input2("sceneries"),
       gallery: input2("gallery"),
-      period,
-      format: input2("format") || "apng",
+      period: input2("period"),
+      format: input2("format"),
+      stats: on(input2("stats")),
+      label: on(input2("label")),
+      timezone: input2("timezone"),
       chrome: input2("chrome"),
-      stats: input2("stats") !== "false",
-      timezone: input2("timezone") || void 0,
       outDir: path17.join(os11.tmpdir(), "commit-forest-out")
     });
-    if (!process.env.COMMIT_FOREST_DRY_RUN) publish(files, { repo, branch, token });
-    summary(`### Your forest has ${forest.stats.trees.toLocaleString("en-US")} trees
+    if (!process.env.COMMIT_FOREST_DRY_RUN) publish(Object.values(files), { repo, branch, token });
+    const n = forest.stats.trees;
+    summary(`### Your forest has ${n.toLocaleString("en-US")} ${n === 1 ? "tree" : "trees"}
 
 Put this in your README.md:
 
@@ -65316,14 +65472,20 @@ Put this in your README.md:
 ${snippet({ repo, branch, files, alt })}
 \`\`\``);
   } catch (e) {
-    summary(`### The forest wasn't redrawn this time
+    const hide = (text) => token ? String(text).split(token).join("***") : String(text);
+    const scheduled2 = process.env.GITHUB_EVENT_NAME === "schedule";
+    summary(`### The forest wasn't drawn this time
 
-Yesterday's images stay as they are. The reason:
+${scheduled2 ? "The images from the last run stay as they are. " : ""}The reason: ${hide(e.message)}
+
+<details><summary>Details</summary>
 
 \`\`\`
-${e.stack || e}
-\`\`\``);
-    console.log(`::warning::Commit Forest: ${e.message}`);
+${hide(e.stack || e)}
+\`\`\`
+</details>`);
+    console.log(`::${scheduled2 ? "warning" : "error"}::Commit Forest: ${hide(e.message)}`);
+    if (!scheduled2) process.exitCode = 1;
   }
 }
 main();

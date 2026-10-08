@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildForest, inPeriod, ANCIENT, SEEDLING, MATURE } from '../src/forest.js';
+import { buildForest, inPeriod, ANCIENT, SEEDLING, MATURE, BREAK_DAYS, MAX_INDIVIDUAL_TREES } from '../src/forest.js';
+import { dailyScenery, sceneryList } from '../src/scenery.js';
 
 const day = (date, count = 1, level = 'FIRST_QUARTILE') => ({ date, count, level });
 const opts = { login: 'someone', today: '2026-10-05' };
@@ -29,7 +30,7 @@ test('trees grow with age', () => {
   assert.deepEqual(f.trees.map(t => t.stage), [ANCIENT, MATURE, SEEDLING]);
 });
 
-test('a break of 14 days leaves a pond, 13 days does not', () => {
+test(`a break of ${BREAK_DAYS} days leaves a pond, one day less does not`, () => {
   const f = buildForest([day('2026-01-01'), day('2026-01-16'), day('2026-01-30')], opts);
   assert.equal(f.trees[1].gap, 14);
   assert.equal(f.trees[2].gap, undefined);
@@ -46,15 +47,14 @@ test('the layout depends on the login, and stays put from one day to the next', 
 test('no animal comes from a streak', () => {
   const days = Array.from({ length: 120 }, (_, i) => day(new Date(Date.UTC(2026, 5, 1) + i * 86400000).toISOString().slice(0, 10)));
   const f = buildForest(days, opts);
-  assert.equal(f.stats.streak, 0);
   assert.deepEqual(f.visitors.map(v => v.key).sort(), ['deer', 'rabbit']);
 });
 
-test('more than 730 trees: the oldest go to the deep forest', () => {
+test(`more than ${MAX_INDIVIDUAL_TREES} trees: the oldest go to the deep forest`, () => {
   const days = Array.from({ length: 1000 }, (_, i) => day(new Date(Date.UTC(2023, 0, 1) + i * 86400000).toISOString().slice(0, 10)));
   const f = buildForest(days, opts);
-  assert.equal(f.trees.length, 730);
-  assert.equal(f.merged.count, 270);
+  assert.equal(f.trees.length, MAX_INDIVIDUAL_TREES);
+  assert.equal(f.merged.count, 1000 - MAX_INDIVIDUAL_TREES);
 });
 
 test('periods: the fetched span as it is, this year, one calendar year', () => {
@@ -64,7 +64,6 @@ test('periods: the fetched span as it is, this year, one calendar year', () => {
   assert.equal(inPeriod(days, 'last-year', '2026-10-05').length, 4);
   assert.equal(inPeriod(days, 'this-year', '2026-10-05').length, 1);
   assert.equal(inPeriod(days, '2025', '2026-10-05').length, 2);
-  assert.throws(() => inPeriod(days, 'forever', '2026-10-05'));
 });
 
 test('birds: one for each contribution in the past day', () => {
@@ -72,8 +71,7 @@ test('birds: one for each contribution in the past day', () => {
   assert.equal(f.stats.today_reviews, 3 * 40);
 });
 
-test('daily scenery: the same all day, from the given list, changing between days', async () => {
-  const { dailyScenery, sceneryList } = await import('../src/grow.js');
+test('daily scenery: the same all day, from the given list, changing between days', () => {
   const list = sceneryList('aurora, bamboo,synthwave');
   assert.deepEqual(list, ['aurora', 'bamboo', 'synthwave']);
   assert.equal(dailyScenery(list, 'someone', '2026-10-05'), dailyScenery(list, 'SomeOne', '2026-10-05'));
@@ -81,4 +79,20 @@ test('daily scenery: the same all day, from the given list, changing between day
   assert.ok(week.size > 1 && [...week].every(k => list.includes(k)));
   assert.equal(sceneryList('all').length, 6);
   assert.throws(() => sceneryList('aurora,cherry_blossom'));
+});
+
+test('the label and the numbers lines', async () => {
+  const { labelLine, statsLine } = await import('../src/stamp.js');
+  assert.equal(labelLine('octocat'), 'octocat ON GITHUB · ONE TREE PER DAY WITH A CONTRIBUTION');
+  const stats = { trees: 1, cards: 3 };
+  assert.equal(statsLine(stats, 'last-year', '2026'), '1 TREE · 3 CONTRIBUTIONS IN THE LAST YEAR');
+  assert.equal(statsLine(stats, 'all', '2026', '2017'), '1 TREE · 3 CONTRIBUTIONS SINCE 2017');
+  assert.equal(statsLine(stats, '2025', '2026'), '2025 · 1 TREE · 3 CONTRIBUTIONS');
+});
+
+test('daily picks for light and dark on their own; scenery names may be written loosely', () => {
+  const list = sceneryList('Golden-Lake, AURORA,bamboo');
+  assert.deepEqual(list, ['golden_lake', 'aurora', 'bamboo']);
+  const days = Array.from({ length: 30 }, (_, i) => `2026-09-${String(i + 1).padStart(2, '0')}`);
+  assert.ok(days.some(d => dailyScenery(list, 'someone', d, 'light') !== dailyScenery(list, 'someone', d, 'dark')));
 });

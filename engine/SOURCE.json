@@ -1,6 +1,6 @@
 {
-  "addon_commit": "0d0366f+changes",
-  "synced": "2026-10-05",
+  "addon_commit": "084baca",
+  "synced": "2026-10-08",
   "files": [
     "util.js",
     "layout.js",
@@ -10,6 +10,7 @@
     "ponds.js",
     "tooltips.js",
     "caption.js",
+    "news.js",
     "hover.js",
     "core.js",
     "effects.js",

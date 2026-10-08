@@ -9,8 +9,9 @@
   "scripts": {
     "sync-engine": "python3 scripts/sync_engine.py",
     "local": "node scripts/local.js",
-    "build": "esbuild src/index.js --bundle --platform=node --target=node24 --format=esm --outfile=dist/index.js --banner:js=\"import { createRequire as __cfRequire } from 'module'; const require = __cfRequire(import.meta.url);\"",
-    "test": "node --test"
+    "build": "esbuild src/index.js --bundle --platform=node --target=node24 --format=esm --outfile=dist/index.js --banner:js=\"import { createRequire as __cfRequire } from 'module'; const require = __cfRequire(import.meta.url);\" && npm run site",
+    "test": "node --test",
+    "site": "mkdir -p docs && esbuild site/app.js --bundle --format=esm --outfile=docs/app.js && cp site/index.html docs/index.html && cp engine/forest-engine.txt docs/engine.js && touch docs/.nojekyll"
   },
   "dependencies": {
     "gifenc": "^1.0.3",

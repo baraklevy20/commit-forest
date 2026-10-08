@@ -6,7 +6,7 @@ branding:
   color: green
 inputs:
   user:
-    description: Whose contributions grow the forest.
+    description: Whose contributions grow the forest. Set it to your own username if the repository belongs to an organization.
     default: ${{ github.repository_owner }}
   scenery:
     description: "The scenery for light mode: golden_lake, misty_valley, aurora, lanterns, bamboo or synthwave; daily for a different one each day; or shuffle for all of them in turn in one image."
@@ -15,7 +15,7 @@ inputs:
     description: The scenery for dark mode, with the same choices. Empty for no dark image.
     default: aurora
   sceneries:
-    description: "Which sceneries daily and shuffle choose from, separated by commas, or all."
+    description: "Which sceneries daily and shuffle choose from, separated by commas (such as aurora,lanterns,synthwave), or all."
     default: all
   gallery:
     description: "Also draw one image per scenery (forest-<scenery>.png), for these sceneries separated by commas, or all. Empty for none."
@@ -24,22 +24,25 @@ inputs:
     description: "Which contributions: last-year (the same year as the calendar on your profile), this-year (the current calendar year), all (your whole history), or a year such as 2025."
     default: last-year
   stats:
-    description: Show the number of trees and contributions in the image.
+    description: "Show the number of trees and contributions at the bottom of the image: true or false."
+    default: "true"
+  label:
+    description: "Show the line at the top that says what the forest is (your username on GitHub, one tree per day with a contribution): true or false."
     default: "true"
   timezone:
-    description: "Your time zone, such as Europe/Berlin. The light image then shows the time of day where you are; run the workflow every hour for it to keep up."
+    description: "Your time zone, such as Europe/Berlin. The light image then shows the time of day where you are. Set the schedule to cron 0 * * * * so it keeps up."
     default: ""
   format:
-    description: "apng (animated PNG), gif, or png (still)."
+    description: "apng (animated PNG), gif, or png (a still). GIF files are much larger, and their names end in .gif."
     default: apng
   branch:
-    description: The branch the images are pushed to.
+    description: The branch the images are pushed to. It is replaced on every run, so it can't be main or your default branch.
     default: output
   token:
-    description: Reads your contribution calendar. The workflow's own token is enough.
+    description: Reads your contribution calendar and pushes the images. The workflow's own token is enough.
     default: ${{ github.token }}
   chrome:
-    description: Path to Chrome. Found on its own on GitHub's runners.
+    description: The path to Chrome, for runners other than ubuntu-latest. Found on its own there.
     default: ""
 runs:
   using: node24

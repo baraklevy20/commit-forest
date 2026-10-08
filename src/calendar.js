@@ -5,10 +5,9 @@
 
 const API = 'https://api.github.com/graphql';
 
-const ACCOUNT = `query($login: String!) { user(login: $login) { createdAt } }`;
 const DAYS = `contributionCalendar { totalContributions weeks { contributionDays { date contributionCount contributionLevel } } }`;
 // with no dates, the calendar is the one on the profile: the last year, up to today
-const ROLLING = `query($login: String!) { user(login: $login) { contributionsCollection { ${DAYS} } } }`;
+const ROLLING = `query($login: String!) { user(login: $login) { createdAt contributionsCollection { ${DAYS} } } }`;
 const SPAN = `query($login: String!, $from: DateTime!, $to: DateTime!) {
   user(login: $login) { contributionsCollection(from: $from, to: $to) { ${DAYS} } } }`;
 
@@ -31,7 +30,6 @@ async function span(login, token, year, now) {
   const from = new Date(Date.UTC(year, 0, 1));
   const to = year === now.getUTCFullYear() ? now : new Date(Date.UTC(year, 11, 31, 23, 59, 59));
   const data = await query(token, SPAN, { login, from: from.toISOString(), to: to.toISOString() });
-  if (!data.user) throw new Error(`there is no GitHub user called ${login}`);
   return daysOf(data.user.contributionsCollection.contributionCalendar);
 }
 
@@ -39,8 +37,13 @@ async function span(login, token, year, now) {
  * period: 'last-year' (the profile's own calendar, so the counts and shades match it
  * exactly), 'this-year', a year ('2025'), or 'all' (every year since the account was made). */
 export async function fetchCalendar(login, token, period = 'last-year', now = new Date()) {
-  const rolling = await query(token, ROLLING, { login });
-  if (!rolling.user) throw new Error(`there is no GitHub user called ${login}`);
+  const rolling = await query(token, ROLLING, { login }).catch(e => {
+    if (!/resolve to a User/i.test(e.message)) throw e;
+    return { user: null };
+  });
+  if (!rolling.user) {
+    throw new Error(`there is no GitHub user called ${login}. If this repository belongs to an organization, set the user input to your own username`);
+  }
   const recent = daysOf(rolling.user.contributionsCollection.contributionCalendar);
   const today = recent[recent.length - 1].date;
   if (period === 'last-year') return { days: recent, today };
@@ -49,9 +52,8 @@ export async function fetchCalendar(login, token, period = 'last-year', now = ne
     return { days: await span(login, token, year, now), today };
   }
   if (period !== 'all') throw new Error(`period must be last-year, this-year, all or a year like 2025, not "${period}"`);
-  const account = await query(token, ACCOUNT, { login });
   const days = new Map();
-  for (let year = new Date(account.user.createdAt).getUTCFullYear(); year <= now.getUTCFullYear(); year++) {
+  for (let year = new Date(rolling.user.createdAt).getUTCFullYear(); year <= now.getUTCFullYear(); year++) {
     for (const d of await span(login, token, year, now)) days.set(d.date, d);
   }
   return { days: [...days.values()].sort((a, b) => a.date.localeCompare(b.date)), today };
